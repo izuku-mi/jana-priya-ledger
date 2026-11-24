@@ -154,6 +154,15 @@ export const DEFAULT_SETTINGS: Settings = {
   lastBackupAt: null,
 };
 
+/** Everything people entered. Movements, balances and cash days are rebuilt from it. */
+export interface LedgerData {
+  settings: Settings;
+  skus: Sku[];
+  sheets: DailySheet[];
+  inwards: Inward[];
+  notes?: Note[];
+}
+
 export type AlertLevel = 'critical' | 'warn';
 
 export interface Alert {

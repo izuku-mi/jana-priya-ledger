@@ -108,6 +108,16 @@ export function buildMovements(sheet: DailySheet): Movement[] {
   return out;
 }
 
+/** Every record a saved form produces: movements, closing balances and the day's cash. */
+export function deriveDay(sheet: DailySheet) {
+  return {
+    date: sheet.date,
+    movements: buildMovements(sheet),
+    balances: Object.values(sheet.rows).map((r) => ({ key: `${sheet.date}|${r.skuId}`, date: sheet.date, skuId: r.skuId, closing: r.c })),
+    cashDay: cashDay(sheet),
+  };
+}
+
 /** Totals for one day. Expected cash = sales − UPI − other − every expense line. */
 export function cashDay(sheet: DailySheet): CashDay {
   let liquor = 0, beer = 0, units = 0, cogs = 0, damages = 0, costKnown = true;

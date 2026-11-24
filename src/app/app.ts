@@ -26,11 +26,20 @@ import { Toast } from './ui/toast';
   `,
 })
 export class App {
+  /** Shortest time the splash stays up, from page start. */
+  static readonly SPLASH_MIN_MS = 1200;
+
   protected store = inject(LedgerStore);
   protected i = inject(I18n);
   protected toast = inject(Toast);
 
   constructor() {
+    // Take the splash from index.html away once data is loaded, after it has been seen for at least a moment.
+    effect(() => {
+      if (!this.store.ready()) return;
+      const wait = Math.max(0, App.SPLASH_MIN_MS - performance.now());
+      setTimeout(() => document.getElementById('splash')?.remove(), wait);
+    });
     effect(() => {
       const s = this.store.settings();
       document.documentElement.setAttribute('data-theme', s.dark ? 'dark' : 'light');

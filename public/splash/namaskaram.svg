@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="30 18 300 324" role="img" aria-label="A woman's hands folded in namaskaram, with bangles on each wrist">
+  <!-- Thin wine line art on white-filled hands; wine bangles with gold dots. -->
+  <g fill="none" stroke="#7a1f3d" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- white fill behind each hand -->
+    <path fill="#ffffff" stroke="none" d="M109 256C121 248 127 232 131 205C135 182 141 165 147 145C155 112 164 70 172 33L183 30C184 95 183 175 180 252C176 262 160 274 118 295Z"/>
+    <path fill="#ffffff" stroke="none" d="M255 259C242 250 237 232 234 205C231 182 225 165 219 145C211 112 204 70 198 33L183 30C184 95 183 175 181 247C186 262 204 276 244 298Z"/>
+
+    <!-- centre seam -->
+    <path d="M183 32C184 95 183 175 180 252"/>
+    <path stroke-width="2.2" d="M186 42C188 108 186 180 183 245"/>
+
+    <!-- left hand -->
+    <path d="M41 270L64 268M60 322L75 314"/>
+    <path d="M109 256C121 248 127 232 131 205C135 182 141 165 147 145C155 112 164 70 172 33"/>
+    <path d="M118 295C142 282 162 272 174 262C178 258 180 252 180 245"/>
+    <path stroke-width="2.2" d="M143 189C148 162 155 135 162 110C168 85 173 60 177 39M153 196C158 168 164 142 170 115C174 98 177 85 180 72"/>
+    <g fill="#ffffff" stroke-width="2.2">
+      <ellipse cx="174.5" cy="34" rx="4.2" ry="9.5" transform="rotate(11 174.5 34)"/>
+      <ellipse cx="180.5" cy="39" rx="3.8" ry="8.5" transform="rotate(8 180.5 39)"/>
+      <ellipse cx="177.5" cy="54" rx="3.8" ry="8.5" transform="rotate(10 177.5 54)"/>
+      <ellipse cx="177.5" cy="91" rx="4" ry="9.5" transform="rotate(11 177.5 91)"/>
+      <ellipse cx="155.5" cy="147" rx="4.8" ry="10.5" transform="rotate(13 155.5 147)"/>
+    </g>
+    <g transform="rotate(-12 80 288)">
+      <rect x="63" y="242" width="33" height="90" rx="16.5" fill="#7a1f3d"/>
+      <path stroke="#e6b043" stroke-width="3.4" stroke-dasharray="0.1 7" d="M73 252C70 275 70 300 73 322M86 252C83 275 83 300 86 322"/>
+      <path stroke="#fbefd5" stroke-width="1.6" d="M79.5 247C76.5 275 76.5 300 79.5 327"/>
+    </g>
+    <g transform="rotate(-12 103 277)">
+      <rect x="88" y="232" width="28" height="90" rx="14" fill="#7a1f3d"/>
+      <path stroke="#e6b043" stroke-width="3.4" stroke-dasharray="0.1 7" d="M97 242C94 265 94 290 97 312"/>
+      <path stroke="#fbefd5" stroke-width="1.6" d="M105 237C102 265 102 290 105 317"/>
+    </g>
+
+    <!-- right hand -->
+    <path d="M319 276L296 272M297 328L283 319"/>
+    <path d="M255 259C242 250 237 232 234 205C231 182 225 165 219 145C211 112 204 70 198 33"/>
+    <path d="M244 298C220 285 200 274 188 264C184 260 182 254 181 247"/>
+    <path stroke-width="2.2" d="M222 188C217 162 211 135 205 110C199 85 195 60 192 40M212 195C207 168 201 142 196 115C192 98 189 85 186 72"/>
+    <g fill="#ffffff" stroke-width="2.2">
+      <ellipse cx="197.5" cy="34" rx="4.2" ry="9.5" transform="rotate(-10 197.5 34)"/>
+      <ellipse cx="190.5" cy="38" rx="3.8" ry="8.5" transform="rotate(-8 190.5 38)"/>
+      <ellipse cx="195.5" cy="54" rx="3.8" ry="8.5" transform="rotate(-9 195.5 54)"/>
+      <ellipse cx="193" cy="92" rx="4" ry="9.5" transform="rotate(-10 193 92)"/>
+      <ellipse cx="211" cy="148" rx="4.8" ry="10.5" transform="rotate(-12 211 148)"/>
+    </g>
+    <g transform="rotate(14 282 293)">
+      <rect x="265" y="247" width="33" height="90" rx="16.5" fill="#7a1f3d"/>
+      <path stroke="#e6b043" stroke-width="3.4" stroke-dasharray="0.1 7" d="M276 257C279 280 279 305 276 327M289 257C292 280 292 305 289 327"/>
+      <path stroke="#fbefd5" stroke-width="1.6" d="M282.5 252C285.5 280 285.5 305 282.5 332"/>
+    </g>
+    <g transform="rotate(14 259 280)">
+      <rect x="245" y="235" width="28" height="90" rx="14" fill="#7a1f3d"/>
+      <path stroke="#e6b043" stroke-width="3.4" stroke-dasharray="0.1 7" d="M263 245C266 268 266 293 263 315"/>
+      <path stroke="#fbefd5" stroke-width="1.6" d="M255 240C258 268 258 293 255 320"/>
+    </g>
+  </g>
+</svg>
