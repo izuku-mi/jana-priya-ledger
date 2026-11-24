@@ -68,6 +68,15 @@ export interface DailySheet {
   preparedBy: string;
   savedAt: string | null;
   updatedAt: string;
+  /** Every PDF made for this day. The figures are kept so a later report can list what changed. */
+  reports?: ReportRecord[];
+}
+
+export interface ReportRecord {
+  no: number;
+  at: string;
+  by: string;
+  snap: Record<string, number | null>;
 }
 
 export type MovementType = 'RECEIPT' | 'SALE' | 'ISSUE';

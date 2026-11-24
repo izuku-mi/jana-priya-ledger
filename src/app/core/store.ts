@@ -6,7 +6,7 @@ import {
   applyOpeningFix, deriveDay, FixMode, landedCosts, newSheet, openingDiffs, rowFromSku, weightedAverage, withAutoClosing,
 } from './ledger';
 import { convertLegacy, LegacyBackup } from './legacy';
-import { Balance, CashDay, DailySheet, DEFAULT_SETTINGS, Inward, LedgerData, Movement, Note, Settings, SheetRow, Sku } from './model';
+import { Balance, CashDay, DailySheet, DEFAULT_SETTINGS, Inward, LedgerData, Movement, Note, ReportRecord, Settings, SheetRow, Sku } from './model';
 import { LEDGER_REPOSITORY } from './repository';
 
 export type SheetState =
@@ -184,6 +184,15 @@ export class LedgerStore {
       if (ids.length) await this.saveDraft(applyOpeningFix(next, saved, ids, 'keepSales'));
     }
     return saved;
+  }
+
+  /** Remember that a report was made, with its figures, without changing whether the day is saved. */
+  async recordReport(date: string, record: ReportRecord) {
+    const sheet = this.sheets()[date];
+    if (!sheet) return;
+    const next: DailySheet = { ...sheet, reports: [...(sheet.reports ?? []), record] };
+    this.sheets.update((m) => ({ ...m, [date]: next }));
+    await this.repo.putSheet(next);
   }
 
   fixOpenings(sheet: DailySheet, skuIds: string[], mode: FixMode) {

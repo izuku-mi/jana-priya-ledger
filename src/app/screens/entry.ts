@@ -46,6 +46,11 @@ const TYPES: { v: ExpenseType; k: Key }[] = [
             <button class="btn grow" type="button" (click)="openFetch()" [disabled]="!prevSaved()"><app-icon name="sync" [size]="18" />{{ i.t('fetchPrev') }}</button>
             <a class="btn" [routerLink]="['/inward', date()]"><app-icon name="truck" [size]="18" />{{ i.t('inward') }}</a>
           </div>
+          @if (store.sheets()[date()]) {
+            <a class="btn" [routerLink]="['/report', date()]"><app-icon name="note" [size]="18" />{{ i.pick('Daily report (PDF)', 'రోజువారీ నివేదిక (PDF)') }}
+              @if (store.sheets()[date()].reports?.length) { <span class="chip">R{{ store.sheets()[date()].reports!.length }}</span> }
+            </a>
+          }
         }
       </header>
 
