@@ -80,10 +80,18 @@ const sizeOrder = (z: string) => {
               <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
                 <input class="input" [value]="editBrand()!.nameEn" (input)="patchBrand({ nameEn: $any($event.target).value })" [attr.aria-label]="i.t('nameEn')" [placeholder]="i.t('nameEn')" />
                 <input class="input" [value]="editBrand()!.nameTe" (input)="patchBrand({ nameTe: $any($event.target).value })" [attr.aria-label]="i.t('nameTe')" [placeholder]="i.t('nameTe')" />
-                <select class="input" (change)="patchBrand({ cat: $any($event.target).value })" aria-label="Category" style="grid-column: 1 / -1">
-                  <option value="LIQUOR" [selected]="editBrand()!.cat === 'LIQUOR'">{{ i.t('liquor') }}</option>
-                  <option value="BEER" [selected]="editBrand()!.cat === 'BEER'">{{ i.t('beer') }}</option>
-                </select>
+                <label class="field"><span class="cap">{{ i.pick('Liquor or beer', 'లిక్కర్ / బీర్') }}</span>
+                  <select class="input" (change)="patchBrand({ cat: $any($event.target).value })">
+                    <option value="LIQUOR" [selected]="editBrand()!.cat === 'LIQUOR'">{{ i.t('liquor') }}</option>
+                    <option value="BEER" [selected]="editBrand()!.cat === 'BEER'">{{ i.t('beer') }}</option>
+                  </select>
+                </label>
+                <label class="field"><span class="cap">{{ i.pick('Kind', 'రకం') }}{{ c.items.length > 1 ? i.pick(' (all items)', ' (అన్నీ)') : '' }}</span>
+                  <select class="input" (change)="brandKind.set($any($event.target).value)">
+                    @if (!brandKind()) { <option value="" selected>{{ i.pick('Mixed: set per item', 'వేర్వేరు') }}</option> }
+                    @for (k of kinds; track k.v) { <option [value]="k.v" [selected]="k.v === brandKind()">{{ i.pick(k.en, k.te) }}</option> }
+                  </select>
+                </label>
               </div>
               <div class="cap">{{ i.pick('The new name shows on every day’s form, past days too.', 'కొత్త పేరు అన్ని రోజుల ఫారమ్‌లలో కనిపిస్తుంది.') }}</div>
               <div class="row">
@@ -92,7 +100,7 @@ const sizeOrder = (z: string) => {
               </div>
             </form>
           } @else {
-            <button type="button" class="row" style="border: 0; background: transparent; padding: 0; text-align: left; cursor: pointer; color: inherit; width: 100%" (click)="startBrand(c.brand)" [disabled]="picking()">
+            <button type="button" class="row" style="border: 0; background: transparent; padding: 0; text-align: left; cursor: pointer; color: inherit; width: 100%" (click)="startBrand(c)" [disabled]="picking()">
               <span class="grow" style="display: flex; flex-direction: column">
                 <span class="title" style="font-size: 18px">{{ i.name(c.brand) }}</span>
                 <span class="cap">{{ kindsOf(c) }} · {{ c.items.length }} {{ c.items.length === 1 ? i.pick('item', 'ఐటమ్') : i.pick('items', 'ఐటమ్‌లు') }}</span>
@@ -345,9 +353,15 @@ export class Catalog {
   // ---------- brand edit ----------
 
   protected editBrand = signal<Brand | null>(null);
-  protected startBrand(b: Brand) {
+  /** The kind for all the brand's items; '' when they differ and nothing was picked. */
+  protected brandKind = signal<Kind | ''>('');
+  private kindAtStart: Kind | '' = '';
+  protected startBrand(c: Card) {
     this.open.set(null);
-    this.editBrand.set({ ...b });
+    this.editBrand.set({ ...c.brand });
+    const ks = new Set(c.items.map((s) => s.kind ?? 'other'));
+    this.kindAtStart = ks.size === 1 ? [...ks][0] : '';
+    this.brandKind.set(this.kindAtStart);
   }
   protected patchBrand(p: Partial<Brand>) {
     this.editBrand.update((b) => (b ? { ...b, ...p } : b));
@@ -355,7 +369,8 @@ export class Catalog {
   protected async saveBrand() {
     const b = this.editBrand();
     if (!b) return;
-    await this.run(() => this.store.updateBrand(b.id, { nameEn: b.nameEn.trim(), nameTe: b.nameTe.trim() || b.nameEn.trim(), cat: b.cat }));
+    const kind = this.brandKind();
+    await this.run(() => this.store.updateBrand(b.id, { nameEn: b.nameEn.trim(), nameTe: b.nameTe.trim() || b.nameEn.trim(), cat: b.cat }, kind && kind !== this.kindAtStart ? kind : undefined));
     this.editBrand.set(null);
     this.toast.show(this.i.pick(`Saved ${b.nameEn.trim()}`, `${b.nameTe.trim() || b.nameEn.trim()} సేవ్ అయింది`));
   }

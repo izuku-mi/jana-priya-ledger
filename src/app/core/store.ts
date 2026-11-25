@@ -7,7 +7,7 @@ import {
   applyOpeningFix, deriveDay, FixMode, clearDayData, landedCosts, moveDayData, newSheet, openingDiffs, PriceOf, rowFromSku, withAutoClosing,
 } from './ledger';
 import { convertLegacy, LegacyBackup } from './legacy';
-import { Balance, Brand, CashDay, DailySheet, DEFAULT_SETTINGS, Inward, LedgerData, Movement, Note, PriceChange, ReportRecord, Settings, SheetRow, Sku } from './model';
+import { Balance, Brand, CashDay, Kind, DailySheet, DEFAULT_SETTINGS, Inward, LedgerData, Movement, Note, PriceChange, ReportRecord, Settings, SheetRow, Sku } from './model';
 import { mergePriceChanges, priceIndex, priceOn, pricesFromSheets, repriceSheet } from './pricing';
 import { LEDGER_REPOSITORY } from './repository';
 
@@ -425,8 +425,11 @@ export class LedgerStore {
   }
 
   /** Rename a brand (or change its category): every item and every day's form follows. */
-  updateBrand(id: string, patch: Partial<Omit<Brand, 'id'>>) {
-    return this.commitCatalog(cat.updateBrand(this.currentData(), id, patch));
+  updateBrand(id: string, patch: Partial<Omit<Brand, 'id'>>, kind?: Kind) {
+    let next = cat.updateBrand(this.currentData(), id, patch);
+    // A kind chosen on the brand applies to all its items.
+    if (kind) next = { ...next, skus: next.skus.map((s) => (s.brandId === id ? { ...s, kind } : s)) };
+    return this.commitCatalog(next);
   }
 
   /** Change an item's type, size or kind: every day's form follows. */

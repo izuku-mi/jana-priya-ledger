@@ -19,7 +19,7 @@ import { Toast } from '../ui/toast';
   template: `
     <main class="screen">
       <header class="screen-head">
-        <a class="btn icon quiet" routerLink="/settings" [attr.aria-label]="i.t('settings')"><app-icon name="left" /></a>
+        <a class="btn icon quiet" routerLink="/catalog" [attr.aria-label]="i.pick('Back to catalogue', 'కేటలాగ్‌కు తిరిగి')"><app-icon name="left" /></a>
         <div class="grow"><h1>{{ i.pick('Price list', 'ధరల జాబితా') }}</h1><div class="sub">{{ i.pick('New prices from a date', 'ఒక తేదీ నుంచి కొత్త ధరలు') }}</div></div>
       </header>
 
