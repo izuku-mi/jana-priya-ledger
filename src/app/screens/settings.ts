@@ -3,18 +3,15 @@ import { fmtDay, monthShort } from '../core/dates';
 import { group, parseCount } from '../core/format';
 import { I18n } from '../core/i18n';
 import { isLegacyBackup, LegacyBackup } from '../core/legacy';
-import { Cat, Sku } from '../core/model';
 import { BackupFile, isBackupFile, LedgerStore } from '../core/store';
-import { RouterLink } from '@angular/router';
 import { Icon } from '../ui/icon';
-import { PriceHistory } from '../ui/price-history';
 import { Toast } from '../ui/toast';
 
 type Pending = { kind: 'backup'; file: BackupFile; ok: boolean } | { kind: 'legacy'; file: LegacyBackup; dates: string[] };
 
 @Component({
   selector: 'app-settings',
-  imports: [Icon, PriceHistory, RouterLink],
+  imports: [Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="screen">
@@ -86,38 +83,6 @@ type Pending = { kind: 'backup'; file: BackupFile; ok: boolean } | { kind: 'lega
         <button class="btn danger" type="button" (click)="erase()"><app-icon name="trash" [size]="18" />{{ i.t('eraseAll') }}</button>
       </section>
 
-      <section class="card">
-        <h2 class="title">{{ i.t('newBrand') }}</h2>
-        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
-          <input class="input" [placeholder]="i.t('nameEn')" [value]="nb().nameEn" (input)="nbSet({ nameEn: $any($event.target).value })" [attr.aria-label]="i.t('nameEn')" />
-          <input class="input" [placeholder]="i.t('nameTe')" [value]="nb().nameTe" (input)="nbSet({ nameTe: $any($event.target).value })" [attr.aria-label]="i.t('nameTe')" />
-          <select class="input" (change)="nbSet({ cat: $any($event.target).value })" aria-label="Category"><option value="LIQUOR">{{ i.t('liquor') }}</option><option value="BEER">{{ i.t('beer') }}</option></select>
-          <select class="input" (change)="nbSet({ size: $any($event.target).value })" [attr.aria-label]="i.t('size')">@for (z of sizes; track z) { <option [value]="z">{{ z }}</option> }</select>
-          <input class="input n" inputmode="numeric" [placeholder]="i.t('sellRate')" [value]="nb().rate || ''" (input)="nbSet({ rate: parseCount($any($event.target).value) })" [attr.aria-label]="i.t('sellRate')" />
-          <input class="input n" inputmode="numeric" [placeholder]="i.t('buyCost')" [value]="nb().cost || ''" (input)="nbSet({ cost: parseCount($any($event.target).value) })" [attr.aria-label]="i.t('buyCost')" />
-        </div>
-        <button class="btn primary" type="button" [disabled]="!nb().nameEn.trim()" (click)="addBrand()"><app-icon name="plus" />{{ i.t('newBrand') }}</button>
-      </section>
-
-      <section class="card tight">
-        <div class="row-between"><h2 class="title">{{ i.t('catalog') }}</h2><span class="cap">{{ store.skus().length }}</span></div>
-        <input class="input" [placeholder]="i.t('searchBrand')" [value]="q()" (input)="q.set($any($event.target).value)" />
-        <a class="btn" routerLink="/prices"><app-icon name="note" [size]="18" />{{ i.pick('Price list from a date (many brands)', 'తేదీ నుంచి ధరల జాబితా (చాలా బ్రాండ్లు)') }}</a>
-        <div class="cap" style="display: grid; grid-template-columns: minmax(0, 1fr) 110px 40px; gap: 6px"><span>{{ i.pick('Price today: sell / buy. Tap a brand for its history.', 'ఈ రోజు ధర: అమ్మకం / కొనుగోలు. చరిత్రకు బ్రాండ్ నొక్కండి.') }}</span><span></span><span>{{ i.t('activeBrand') }}</span></div>
-        @for (s of list(); track s.id) {
-          <div style="border-top: 1px solid var(--rule)" [style.opacity]="s.active ? 1 : 0.55">
-            <div style="display: grid; grid-template-columns: minmax(0, 1fr) 110px 40px; gap: 6px; align-items: center; padding: 4px 0">
-              <button type="button" class="small" style="border: 0; background: transparent; text-align: left; padding: 8px 0; cursor: pointer; color: inherit" [attr.aria-expanded]="open() === s.id" (click)="open.set(open() === s.id ? null : s.id)">
-                <b>{{ i.name(s) }}</b> <span class="chip">{{ s.size }}</span>
-              </button>
-              <span class="num small" style="text-align: right">₹{{ group(store.priceToday(s).rate) }} / ₹{{ group(round(store.priceToday(s).cost)) }}</span>
-              <input type="checkbox" [checked]="s.active" (change)="setSku(s, { active: $any($event.target).checked })" style="width: 24px; height: 24px; accent-color: var(--wine)" [attr.aria-label]="i.t('activeBrand') + ' ' + s.nameEn" />
-            </div>
-            @if (open() === s.id) { <app-price-history [sku]="s" /> }
-          </div>
-        }
-        <div class="cap">{{ i.pick('Buy cost also comes from each inward delivery, from its date.', 'కొనుగోలు ధర ప్రతి సరుకు రాక నుంచి, ఆ తేదీ నుంచి వర్తిస్తుంది.') }}</div>
-      </section>
     </main>
   `,
 })
@@ -131,20 +96,9 @@ export class SettingsScreen implements OnInit {
   protected group = group;
   protected round = Math.round;
   protected months = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-  protected sizes = ['Q', 'P', 'N', 'D', 'Tin'];
   protected canShare = typeof navigator !== 'undefined' && !!navigator.share && !!navigator.canShare;
 
   protected st = this.store.settings;
-  protected q = signal('');
-  protected open = signal<string | null>(null);
-  protected list = computed(() => {
-    const q = this.q().trim().toLowerCase();
-    return [...this.store.skus()]
-      .sort((a, b) => (a.cat === b.cat ? a.sno - b.sno : a.cat === 'LIQUOR' ? -1 : 1))
-      .filter((s) => !q || `${s.nameEn} ${s.nameTe} ${s.size}`.toLowerCase().includes(q));
-  });
-
-  protected nb = signal({ nameEn: '', nameTe: '', cat: 'LIQUOR' as Cat, size: 'Q', rate: 0, cost: 0 });
   protected pending = signal<Pending | null>(null);
   protected from = signal('');
   protected to = signal('');
@@ -152,21 +106,6 @@ export class SettingsScreen implements OnInit {
 
   async ngOnInit() {
     this.hasSafety.set(await this.store.hasSafetyCopy());
-  }
-
-  protected nbSet(p: Partial<ReturnType<typeof this.nb>>) {
-    this.nb.update((x) => ({ ...x, ...p }));
-  }
-
-  protected async addBrand() {
-    const n = this.nb();
-    await this.store.addSku({ cat: n.cat, nameEn: n.nameEn.trim(), nameTe: n.nameTe.trim() || n.nameEn.trim(), size: n.size, rate: n.rate, cost: n.cost });
-    this.nb.set({ nameEn: '', nameTe: '', cat: n.cat, size: n.size, rate: 0, cost: 0 });
-    this.toast.show('✓ ' + n.nameEn);
-  }
-
-  protected setSku(s: Sku, p: Partial<Sku>) {
-    this.store.putSku({ ...s, ...p });
   }
 
   private fileName() {

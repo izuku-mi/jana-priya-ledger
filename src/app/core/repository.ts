@@ -1,11 +1,12 @@
 import { InjectionToken } from '@angular/core';
-import { Balance, CashDay, DailySheet, Inward, LedgerData, Movement, Note, PriceChange, Settings, Sku } from './model';
+import { Balance, Brand, CashDay, DailySheet, Inward, LedgerData, Movement, Note, PriceChange, Settings, Sku } from './model';
 
 /** What the app keeps. Entered data plus the records rebuilt from it on Save. */
 export interface StoredState {
   settings: Partial<Settings> | null;
   notes: Note[];
   skus: Sku[];
+  brands: Brand[];
   sheets: DailySheet[];
   inwards: Inward[];
   prices: PriceChange[];
@@ -37,6 +38,7 @@ export interface LedgerRepository {
   putSettings(settings: Settings): Promise<void>;
   putNotes(notes: Note[]): Promise<void>;
   putSkus(skus: Sku[]): Promise<void>;
+  putBrands(brands: Brand[]): Promise<void>;
 
   /** A draft (or any form) without touching the derived records. */
   putSheet(sheet: DailySheet): Promise<void>;

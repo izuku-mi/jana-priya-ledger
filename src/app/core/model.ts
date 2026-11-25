@@ -1,5 +1,15 @@
 export type Cat = 'LIQUOR' | 'BEER';
 export type Lang = 'te' | 'en';
+/** What the drink is, for sales and movement analysis. */
+export type Kind = 'whisky' | 'scotch' | 'brandy' | 'rum' | 'vodka' | 'gin' | 'wine' | 'beer' | 'rtd' | 'other';
+
+/** A brand in the catalogue, e.g. Kingfisher. Its items are the types and sizes under it. */
+export interface Brand {
+  id: string;
+  cat: Cat;
+  nameEn: string;
+  nameTe: string;
+}
 
 /** A brand + size in the catalog. `cost` is the weighted-average buy cost per bottle. */
 export interface Sku {
@@ -11,7 +21,14 @@ export interface Sku {
   size: string;
   rate: number;
   cost: number;
+  /** Archived when false: left off new forms, kept in past days. */
   active: boolean;
+  /** The brand this item belongs to; its name is brand + type. Filled in for data from before brands. */
+  brandId?: string;
+  /** e.g. "Strong", "Whisky", "Brandy (Red)". Blank when the brand has only one. */
+  typeEn?: string;
+  typeTe?: string;
+  kind?: Kind;
 }
 
 /** One brand's line on a day's form, exactly as entered. Name and prices are snapshots. */
@@ -194,6 +211,7 @@ export interface LedgerData {
   inwards: Inward[];
   notes?: Note[];
   prices?: PriceChange[];
+  brands?: Brand[];
 }
 
 export type AlertLevel = 'critical' | 'warn';

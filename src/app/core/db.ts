@@ -1,5 +1,5 @@
 import Dexie, { Table } from 'dexie';
-import { Balance, CashDay, DailySheet, Inward, Movement, PriceChange, Sku } from './model';
+import { Balance, Brand, CashDay, DailySheet, Inward, Movement, PriceChange, Sku } from './model';
 import { pricesFromSheets } from './pricing';
 
 export interface MetaRow {
@@ -14,6 +14,7 @@ export interface MetaRow {
  */
 export class LedgerDb extends Dexie {
   skus!: Table<Sku, string>;
+  brands!: Table<Brand, string>;
   sheets!: Table<DailySheet, string>;
   inwards!: Table<Inward, string>;
   movements!: Table<Movement, number>;
@@ -40,5 +41,7 @@ export class LedgerDb extends Dexie {
         const sheets = await tx.table<DailySheet, string>('sheets').toArray();
         await tx.table<PriceChange, string>('prices').bulkPut(pricesFromSheets(sheets));
       });
+    // v3: brands. Items are grouped under brands when the app next starts (catalog.ts withBrands).
+    this.version(3).stores({ brands: 'id, cat' });
   }
 }

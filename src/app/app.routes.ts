@@ -10,6 +10,7 @@ export const routes: Routes = [
   { path: 'report/:date', loadComponent: () => import('./screens/report').then((m) => m.Report) },
   { path: 'stock', loadComponent: () => import('./screens/stock').then((m) => m.Stock) },
   { path: 'pnl', loadComponent: () => import('./screens/pnl').then((m) => m.Pnl) },
+  { path: 'catalog', loadComponent: () => import('./screens/catalog').then((m) => m.Catalog) },
   { path: 'prices', loadComponent: () => import('./screens/prices').then((m) => m.Prices) },
   { path: 'settings', loadComponent: () => import('./screens/settings').then((m) => m.SettingsScreen) },
   { path: '**', redirectTo: 'dashboard' },

@@ -5,16 +5,19 @@ import { addDays, dayShort, fmtShort, PeriodKind, periodOf, todayIso } from '../
 import { group, inr } from '../core/format';
 import { I18n } from '../core/i18n';
 import { LedgerStore } from '../core/store';
+import { RouterLink } from '@angular/router';
 import { AlertsPanel } from '../ui/alerts-panel';
+import { Icon } from '../ui/icon';
 
 @Component({
   selector: 'app-stock',
-  imports: [AlertsPanel],
+  imports: [AlertsPanel, Icon, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="screen">
       <header class="screen-head">
         <div class="grow"><h1>{{ i.t('stockMovement') }}</h1><div class="sub">{{ rangeLabel() }}</div></div>
+        <a class="btn icon quiet" routerLink="/catalog" [attr.aria-label]="i.pick('Catalogue', 'కేటలాగ్')" [title]="i.pick('Catalogue', 'కేటలాగ్')"><app-icon name="tag" /></a>
       </header>
 
       <div class="seg" role="tablist" aria-label="Period">

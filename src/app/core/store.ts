@@ -1,4 +1,5 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
+import * as cat from './catalog';
 import { seedCatalog } from './catalog-seed';
 import { addDays, todayIso } from './dates';
 import { uid } from './format';
@@ -6,7 +7,7 @@ import {
   applyOpeningFix, deriveDay, FixMode, clearDayData, landedCosts, moveDayData, newSheet, openingDiffs, PriceOf, rowFromSku, withAutoClosing,
 } from './ledger';
 import { convertLegacy, LegacyBackup } from './legacy';
-import { Balance, CashDay, DailySheet, DEFAULT_SETTINGS, Inward, LedgerData, Movement, Note, PriceChange, ReportRecord, Settings, SheetRow, Sku } from './model';
+import { Balance, Brand, CashDay, DailySheet, DEFAULT_SETTINGS, Inward, LedgerData, Movement, Note, PriceChange, ReportRecord, Settings, SheetRow, Sku } from './model';
 import { mergePriceChanges, priceIndex, priceOn, pricesFromSheets, repriceSheet } from './pricing';
 import { LEDGER_REPOSITORY } from './repository';
 
@@ -43,6 +44,7 @@ export class LedgerStore {
   readonly persisted = signal<boolean | null>(null);
   readonly settings = signal<Settings>(DEFAULT_SETTINGS);
   readonly skus = signal<Sku[]>([]);
+  readonly brands = signal<Brand[]>([]);
   readonly sheets = signal<Record<string, DailySheet>>({});
   readonly inwards = signal<Inward[]>([]);
   /** Derived on Save: what the dashboards read. */
@@ -88,7 +90,16 @@ export class LedgerStore {
       skus = seedCatalog();
       await this.repo.putSkus(skus);
     }
+    // Data from before brands: group items under brands (same name = same brand).
+    const before = { settings: DEFAULT_SETTINGS, skus, brands: st.brands, sheets: [], inwards: [] };
+    const grouped = cat.withBrands(before);
+    if (grouped !== before) {
+      skus = grouped.skus;
+      await this.repo.putSkus(skus);
+      await this.repo.putBrands(grouped.brands ?? []);
+    }
     this.skus.set(skus);
+    this.brands.set(grouped.brands ?? []);
     this.notes.set(st.notes);
     this.settings.set({ ...DEFAULT_SETTINGS, ...(st.settings ?? {}) });
     this.sheets.set(Object.fromEntries(st.sheets.map((s) => [s.date, s])));
@@ -113,18 +124,6 @@ export class LedgerStore {
     const next = { ...this.settings(), ...patch };
     this.settings.set(next);
     await this.repo.putSettings(next);
-  }
-
-  async putSku(sku: Sku) {
-    await this.repo.putSkus([sku]);
-    this.skus.update((list) => (list.some((s) => s.id === sku.id) ? list.map((s) => (s.id === sku.id ? sku : s)) : [...list, sku]));
-  }
-
-  async addSku(p: Pick<Sku, 'cat' | 'nameEn' | 'nameTe' | 'size' | 'rate' | 'cost'>) {
-    const sno = Math.max(0, ...this.skus().filter((s) => s.cat === p.cat).map((s) => s.sno)) + 1;
-    const sku: Sku = { ...p, id: 'S' + uid(), sno, active: true };
-    await this.putSku(sku);
-    return sku;
   }
 
   async addNote(text: string) {
@@ -355,7 +354,7 @@ export class LedgerStore {
   // ---------- backup & restore ----------
 
   private currentData(): LedgerData {
-    return { settings: this.settings(), skus: this.skus(), sheets: Object.values(this.sheets()), inwards: this.inwards(), notes: this.notes(), prices: this.prices() };
+    return { settings: this.settings(), skus: this.skus(), brands: this.brands(), sheets: Object.values(this.sheets()), inwards: this.inwards(), notes: this.notes(), prices: this.prices() };
   }
 
   async buildBackup(): Promise<BackupFile> {
@@ -402,15 +401,60 @@ export class LedgerStore {
     await this.replaceAll({ settings: DEFAULT_SETTINGS, skus: seedCatalog(), sheets: [], inwards: [], notes: [], prices: [] });
   }
 
-  private async replaceAll(data: LedgerData) {
+  /**
+   * Write a whole data set and reload. `quiet` keeps the current screen in place (catalogue edits);
+   * otherwise the app restarts its screens (restore, import, erase, moving or clearing a day).
+   */
+  private async replaceAll(data: LedgerData, quiet = false) {
     // Backups from before price history carry prices on each day's form; rebuild the history from them.
-    const clean: LedgerData = {
+    // Backups from before brands get their items grouped under brands.
+    const clean: LedgerData = cat.withBrands({
       ...data, settings: { ...DEFAULT_SETTINGS, ...data.settings }, notes: data.notes ?? [],
       prices: data.prices ?? pricesFromSheets(data.sheets),
-    };
+    });
     await this.repo.replaceAll(clean, clean.sheets.filter((s) => s.status === 'saved').map(deriveDay));
-    this.ready.set(false);
+    if (!quiet) this.ready.set(false);
     await this.init();
+  }
+
+  // ---------- catalogue ----------
+
+  private async commitCatalog(next: LedgerData, safetyCopy = false) {
+    if (safetyCopy) await this.repo.putSafetyCopy(await this.buildBackup());
+    await this.replaceAll(next, true);
+  }
+
+  /** Rename a brand (or change its category): every item and every day's form follows. */
+  updateBrand(id: string, patch: Partial<Omit<Brand, 'id'>>) {
+    return this.commitCatalog(cat.updateBrand(this.currentData(), id, patch));
+  }
+
+  /** Change an item's type, size or kind: every day's form follows. */
+  updateItem(id: string, patch: Partial<Pick<Sku, 'typeEn' | 'typeTe' | 'size' | 'kind'>>) {
+    return this.commitCatalog(cat.updateSku(this.currentData(), id, patch));
+  }
+
+  setArchived(ids: string[], archived: boolean) {
+    return this.commitCatalog(cat.setArchived(this.currentData(), ids, archived));
+  }
+
+  moveToBrand(ids: string[], target: Parameters<typeof cat.moveToBrand>[2]) {
+    return this.commitCatalog(cat.moveToBrand(this.currentData(), ids, target));
+  }
+
+  async addItem(brand: Parameters<typeof cat.addItem>[1], item: Parameters<typeof cat.addItem>[2]) {
+    const out = cat.addItem(this.currentData(), brand, item);
+    await this.commitCatalog(out.data);
+    return out.sku;
+  }
+
+  /** Delete items from everywhere. A safety copy is kept first (Settings → Undo). */
+  deleteItems(ids: string[]) {
+    return this.commitCatalog(cat.deleteItems(this.currentData(), ids), true);
+  }
+
+  usage(ids: string[]) {
+    return cat.usage({ sheets: Object.values(this.sheets()), inwards: this.inwards() }, ids);
   }
 
   today() {

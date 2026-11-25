@@ -1,4 +1,4 @@
-import { Balance, CashDay, DailySheet, Inward, LedgerData, Movement, Note, PriceChange, Settings, Sku } from './model';
+import { Balance, Brand, CashDay, DailySheet, Inward, LedgerData, Movement, Note, PriceChange, Settings, Sku } from './model';
 import { DerivedDay, LedgerRepository, StoredState } from './repository';
 
 /** Keeps the ledger in memory. Used by tests, and a template for a server-backed repository. */
@@ -6,6 +6,7 @@ export class MemoryRepository implements LedgerRepository {
   settings: Partial<Settings> | null = null;
   notes: Note[] = [];
   skus = new Map<string, Sku>();
+  brands = new Map<string, Brand>();
   sheets = new Map<string, DailySheet>();
   inwards = new Map<string, Inward>();
   movements: Movement[] = [];
@@ -18,7 +19,7 @@ export class MemoryRepository implements LedgerRepository {
 
   async loadAll(): Promise<StoredState> {
     return this.clone({
-      settings: this.settings, notes: this.notes, skus: [...this.skus.values()], sheets: [...this.sheets.values()],
+      settings: this.settings, notes: this.notes, skus: [...this.skus.values()], brands: [...this.brands.values()], sheets: [...this.sheets.values()],
       inwards: [...this.inwards.values()], movements: this.movements, balances: [...this.balances.values()], cashDays: [...this.cashDays.values()],
       prices: [...this.prices.values()],
     });
@@ -27,6 +28,7 @@ export class MemoryRepository implements LedgerRepository {
   async putSettings(s: Settings) { this.settings = this.clone(s); }
   async putNotes(n: Note[]) { this.notes = this.clone(n); }
   async putSkus(list: Sku[]) { for (const s of list) this.skus.set(s.id, this.clone(s)); }
+  async putBrands(list: Brand[]) { for (const b of list) this.brands.set(b.id, this.clone(b)); }
   async putSheet(s: DailySheet) { this.sheets.set(s.date, this.clone(s)); }
 
   async saveDay(sheet: DailySheet, d: DerivedDay) {
@@ -46,6 +48,7 @@ export class MemoryRepository implements LedgerRepository {
     this.settings = this.clone(data.settings);
     this.notes = this.clone(data.notes ?? []);
     this.skus = new Map(data.skus.map((s) => [s.id, this.clone(s)]));
+    this.brands = new Map((data.brands ?? []).map((b) => [b.id, this.clone(b)]));
     this.sheets = new Map(data.sheets.map((s) => [s.date, this.clone(s)]));
     this.inwards = new Map(data.inwards.map((w) => [w.id, this.clone(w)]));
     this.prices = new Map((data.prices ?? []).map((p) => [p.id, this.clone(p)]));
