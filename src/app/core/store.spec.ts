@@ -64,7 +64,8 @@ describe('LedgerStore through a repository', () => {
     });
     const row = store.sheets()['2026-11-20'].rows['L54'];
     expect([row.o, row.r, row.c, soldOf(row), row.rFromInward]).toEqual([100, 100, 200, 0, true]);
-    expect(repo.skus.get('L54')?.cost).toBe(95);
+    expect(store.sheets()['2026-11-20'].rows['L54'].cost).toBe(95);
+    expect([...repo.prices.values()].map((p) => [p.skuId, p.from, p.cost])).toEqual([['L54', '2026-11-20', 95]]);
 
     await store.deleteInward('w1');
     expect(store.sheets()['2026-11-20'].rows['L54'].r).toBe(0);

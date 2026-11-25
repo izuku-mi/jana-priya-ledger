@@ -163,6 +163,23 @@ export const DEFAULT_SETTINGS: Settings = {
   lastBackupAt: null,
 };
 
+/**
+ * A brand's price from a date onwards. The price on any day is the latest change on or before it.
+ * A change can set the sell rate, the buy cost, or both (a missing one keeps the earlier value).
+ */
+export interface PriceChange {
+  id: string;
+  skuId: string;
+  from: string;
+  rate?: number;
+  cost?: number;
+  /** Where it came from: typed in Settings, changed on a day's form, a delivery, or an import. */
+  source: 'manual' | 'form' | 'inward' | 'import';
+  /** The delivery that set this buy cost, when source is 'inward'. */
+  inwardId?: string;
+  at: string;
+}
+
 /** Everything people entered. Movements, balances and cash days are rebuilt from it. */
 export interface LedgerData {
   settings: Settings;
@@ -170,6 +187,7 @@ export interface LedgerData {
   sheets: DailySheet[];
   inwards: Inward[];
   notes?: Note[];
+  prices?: PriceChange[];
 }
 
 export type AlertLevel = 'critical' | 'warn';

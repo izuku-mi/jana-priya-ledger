@@ -49,7 +49,7 @@ export class Alerts {
     }
     const last = this.store.lastSaved();
     const bal = last ? this.store.balances()[last] ?? {} : {};
-    const noRate = this.store.skus().filter((s) => (bal[s.id] ?? 0) > 0 && !(s.rate > 0));
+    const noRate = this.store.skus().filter((s) => (bal[s.id] ?? 0) > 0 && !(this.store.priceToday(s, last ?? undefined).rate > 0));
     for (const s of noRate) {
       out.push(this.a('warn', `${s.nameEn} ${s.size}: ${bal[s.id]} in stock, no sell rate.`, `${s.nameTe} ${s.size}: ${bal[s.id]} స్టాక్ ఉంది, అమ్మకం ధర లేదు.`,
         'Its value shows as ₹0. Add the rate in Settings.', 'దాని విలువ ₹0 గా చూపుతుంది. సెట్టింగ్స్‌లో ధర చేర్చండి.'));

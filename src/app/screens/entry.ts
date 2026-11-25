@@ -122,10 +122,23 @@ const TYPES: { v: ExpenseType; k: Key }[] = [
                 <span class="label" style="width: 72px; flex: none; font-size: 16px">{{ i.t('closing') }}</span>
                 <input class="input big grow" inputmode="numeric" [value]="r.c" (focus)="$any($event.target).select()" (input)="setClosing(r.skuId, $event)" [attr.aria-label]="i.t('closing') + ' ' + r.nameEn + ' ' + r.size" />
               </label>
-              <div class="row-between small" style="border-top: 1px solid var(--rule); padding-top: 8px">
+              <div class="row-between small" style="border-top: 1px solid var(--rule); padding-top: 8px; align-items: center">
                 <span class="muted">{{ rowNote(r) }}</span>
                 <span class="num label">{{ i.t('sold') }} {{ group(sold(r)) }} · {{ inr(sold(r) * r.rate) }}</span>
               </div>
+              <div class="row-between small" style="align-items: center">
+                <span class="muted num">{{ i.pick('Price', 'ధర') }} ₹{{ group(r.rate) }} / ₹{{ group(round(r.cost)) }}</span>
+                <button type="button" class="btn quiet" style="min-height: 36px; padding: 0 8px" (click)="startPrice(r)">{{ i.pick('Change price', 'ధర మార్చు') }}</button>
+              </div>
+              @if (priceEdit()?.skuId === r.skuId) {
+                <form class="row" style="flex-wrap: wrap; align-items: flex-end" (submit)="$event.preventDefault(); savePrice()">
+                  <label class="field" style="flex: 1 1 90px"><span class="cap">{{ i.t('sellRate') }}</span><input class="input n" inputmode="numeric" [value]="priceEdit()!.rate" (input)="setPriceField('rate', $any($event.target).value)" /></label>
+                  <label class="field" style="flex: 1 1 90px"><span class="cap">{{ i.t('buyCost') }}</span><input class="input n" inputmode="numeric" [value]="priceEdit()!.cost" (input)="setPriceField('cost', $any($event.target).value)" /></label>
+                  <button class="btn" type="submit">{{ i.pick('From', 'నుంచి') }} {{ fmtShort(date()) }}</button>
+                  <button class="btn quiet" type="button" (click)="priceEdit.set(null)">{{ i.t('cancel') }}</button>
+                  <span class="cap" style="flex-basis: 100%">{{ i.pick('Applies from this day onwards, saved days included, until the next price change.', 'ఈ రోజు నుంచి తదుపరి మార్పు వరకు వర్తిస్తుంది.') }}</span>
+                </form>
+              }
             </article>
           } @empty {
             <div class="cap">—</div>
@@ -425,6 +438,38 @@ export class Entry implements OnDestroy {
   protected async closeDay(date: string) {
     await this.store.markClosed(date);
     this.toast.show(this.i.pick(`${fmtShort(date)} saved as shop closed`, `${fmtShort(date)} మూసిన రోజుగా సేవ్ అయింది`));
+  }
+
+  // ---------- price change from this day ----------
+
+  protected round = Math.round;
+  protected priceEdit = signal<{ skuId: string; rate: string; cost: string } | null>(null);
+
+  protected startPrice(r: SheetRow) {
+    this.priceEdit.set({ skuId: r.skuId, rate: String(r.rate || ''), cost: r.cost ? String(Math.round(r.cost)) : '' });
+  }
+
+  protected setPriceField(k: 'rate' | 'cost', v: string) {
+    this.priceEdit.update((p) => (p ? { ...p, [k]: v } : p));
+  }
+
+  protected async savePrice() {
+    const p = this.priceEdit();
+    const row = p && this.sheet()?.rows[p.skuId];
+    if (!p || !row) return;
+    const rate = p.rate.trim() ? parseCount(p.rate) : undefined;
+    const cost = p.cost.trim() ? parseCount(p.cost) : undefined;
+    const change = {
+      id: uid(), skuId: p.skuId, from: this.date(), source: 'form' as const, at: new Date().toISOString(),
+      rate: rate !== row.rate ? rate : undefined, cost: cost !== Math.round(row.cost) ? cost : undefined,
+    };
+    this.priceEdit.set(null);
+    if (change.rate == null && change.cost == null) return;
+    // Keep what was typed on the form, then reprice from this day.
+    this.flush();
+    if (this.state().kind === 'ready' && this.isNewUntouched()) await this.store.saveDraft(this.sheet()!);
+    await this.store.setPrices([change]);
+    this.toast.show(this.i.pick(`New price for ${row.nameEn} ${row.size} from ${fmtShort(this.date())}`, `${row.nameTe} ${row.size} కొత్త ధర ${fmtShort(this.date())} నుంచి`));
   }
 
   // ---------- fetch previous closing ----------

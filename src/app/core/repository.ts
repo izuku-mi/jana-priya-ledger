@@ -1,5 +1,5 @@
 import { InjectionToken } from '@angular/core';
-import { Balance, CashDay, DailySheet, Inward, LedgerData, Movement, Note, Settings, Sku } from './model';
+import { Balance, CashDay, DailySheet, Inward, LedgerData, Movement, Note, PriceChange, Settings, Sku } from './model';
 
 /** What the app keeps. Entered data plus the records rebuilt from it on Save. */
 export interface StoredState {
@@ -8,6 +8,7 @@ export interface StoredState {
   skus: Sku[];
   sheets: DailySheet[];
   inwards: Inward[];
+  prices: PriceChange[];
   movements: Movement[];
   balances: Balance[];
   cashDays: CashDay[];
@@ -44,6 +45,10 @@ export interface LedgerRepository {
 
   putInward(inward: Inward): Promise<void>;
   deleteInward(id: string): Promise<void>;
+
+  /** Price history: add or replace changes, remove some by id. */
+  putPrices(changes: PriceChange[]): Promise<void>;
+  deletePrices(ids: string[]): Promise<void>;
 
   /** Wipe and load a whole data set (restore, import, erase). */
   replaceAll(data: LedgerData, derived: DerivedDay[]): Promise<void>;

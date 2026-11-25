@@ -1,4 +1,4 @@
-import { Balance, CashDay, DailySheet, Inward, LedgerData, Movement, Note, Settings, Sku } from './model';
+import { Balance, CashDay, DailySheet, Inward, LedgerData, Movement, Note, PriceChange, Settings, Sku } from './model';
 import { DerivedDay, LedgerRepository, StoredState } from './repository';
 
 /** Keeps the ledger in memory. Used by tests, and a template for a server-backed repository. */
@@ -11,6 +11,7 @@ export class MemoryRepository implements LedgerRepository {
   movements: Movement[] = [];
   balances = new Map<string, Balance>();
   cashDays = new Map<string, CashDay>();
+  prices = new Map<string, PriceChange>();
   safety: unknown;
 
   private clone = <T>(x: T): T => structuredClone(x);
@@ -19,6 +20,7 @@ export class MemoryRepository implements LedgerRepository {
     return this.clone({
       settings: this.settings, notes: this.notes, skus: [...this.skus.values()], sheets: [...this.sheets.values()],
       inwards: [...this.inwards.values()], movements: this.movements, balances: [...this.balances.values()], cashDays: [...this.cashDays.values()],
+      prices: [...this.prices.values()],
     });
   }
 
@@ -37,6 +39,8 @@ export class MemoryRepository implements LedgerRepository {
 
   async putInward(w: Inward) { this.inwards.set(w.id, this.clone(w)); }
   async deleteInward(id: string) { this.inwards.delete(id); }
+  async putPrices(list: PriceChange[]) { for (const p of list) this.prices.set(p.id, this.clone(p)); }
+  async deletePrices(ids: string[]) { for (const id of ids) this.prices.delete(id); }
 
   async replaceAll(data: LedgerData, derived: DerivedDay[]) {
     this.settings = this.clone(data.settings);
@@ -44,6 +48,7 @@ export class MemoryRepository implements LedgerRepository {
     this.skus = new Map(data.skus.map((s) => [s.id, this.clone(s)]));
     this.sheets = new Map(data.sheets.map((s) => [s.date, this.clone(s)]));
     this.inwards = new Map(data.inwards.map((w) => [w.id, this.clone(w)]));
+    this.prices = new Map((data.prices ?? []).map((p) => [p.id, this.clone(p)]));
     this.movements = this.clone(derived.flatMap((d) => d.movements));
     this.balances = new Map(derived.flatMap((d) => d.balances).map((b) => [b.key, { ...b }]));
     this.cashDays = new Map(derived.map((d) => [d.date, this.clone(d.cashDay)]));

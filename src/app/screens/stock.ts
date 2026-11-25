@@ -201,7 +201,7 @@ export class Stock {
       .filter(([id, c]) => c > 0 && !sold.has(id))
       .map(([id, closing]) => {
         const s = skus.get(id);
-        return { skuId: id, closing, rate: s?.rate ?? 0, name: s ? `${this.i.name(s)} ${s.size}` : id };
+        return { skuId: id, closing, rate: s ? this.store.priceToday(s, end).rate : 0, name: s ? `${this.i.name(s)} ${s.size}` : id };
       })
       .sort((a, b) => b.closing * b.rate - a.closing * a.rate);
   });
