@@ -31,6 +31,25 @@ const TYPES: { v: ExpenseType; k: Key }[] = [
             @if (sheet()?.status === 'saved') { <span class="chip ok"><app-icon name="check" [size]="14" />{{ i.t('saved') }}</span> }
             @else if (isNewUntouched()) { <span class="chip">{{ i.t('newDay') }}</span> }
             @else { <span class="chip warn">{{ i.t('unsaved') }}</span> }
+            <div style="position: relative">
+              <button class="btn icon quiet" type="button" (click)="menuOpen.set(!menuOpen())" aria-haspopup="menu" [attr.aria-expanded]="menuOpen()" [attr.aria-label]="i.pick('More options', 'మరిన్ని ఎంపికలు')"><app-icon name="more" /></button>
+              @if (menuOpen()) {
+                <div style="position: fixed; inset: 0; z-index: 30" (click)="menuOpen.set(false)"></div>
+                <div role="menu" class="menu">
+                  <button role="menuitem" type="button" (click)="menuOpen.set(false); openFetch()" [disabled]="!prevSaved()">
+                    <app-icon name="sync" [size]="18" /><span>{{ i.pick('Match openings to ' + fmtShort(prevDate()) + ' closing', fmtShort(prevDate()) + ' ముగింపుతో ప్రారంభం సరిచేయి') }}</span>
+                  </button>
+                  @if (store.sheets()[date()]) {
+                    <button role="menuitem" type="button" (click)="menuOpen.set(false); openMove()">
+                      <app-icon name="right" [size]="18" /><span>{{ i.pick('Entered on the wrong date? Move to…', 'తప్పు తేదీలో నమోదు? వేరే తేదీకి మార్చు') }}</span>
+                    </button>
+                    <button role="menuitem" type="button" class="danger" (click)="menuOpen.set(false); clearOpen.set(true)">
+                      <app-icon name="trash" [size]="18" /><span>{{ i.pick('Clear this day and enter again', 'ఈ రోజు తుడిచి మళ్లీ నమోదు చేయి') }}</span>
+                    </button>
+                  }
+                </div>
+              }
+            </div>
           }
         </div>
         <div class="row">
@@ -43,15 +62,13 @@ const TYPES: { v: ExpenseType; k: Key }[] = [
         </div>
         @if (state().kind === 'ready') {
           <div class="row">
-            <button class="btn grow" type="button" (click)="openFetch()" [disabled]="!prevSaved()"><app-icon name="sync" [size]="18" />{{ i.t('fetchPrev') }}</button>
-            <a class="btn" [routerLink]="['/inward', date()]"><app-icon name="truck" [size]="18" />{{ i.t('inward') }}</a>
+            <a class="btn grow" [routerLink]="['/inward', date()]"><app-icon name="truck" [size]="18" />{{ i.t('inward') }}</a>
+            @if (store.sheets()[date()]) {
+              <a class="btn grow" [routerLink]="['/report', date()]"><app-icon name="note" [size]="18" />{{ i.pick('Report (PDF)', 'నివేదిక (PDF)') }}
+                @if (store.sheets()[date()].reports?.length) { <span class="chip">R{{ store.sheets()[date()].reports!.length }}</span> }
+              </a>
+            }
           </div>
-          @if (store.sheets()[date()]) {
-            <a class="btn" [routerLink]="['/report', date()]"><app-icon name="note" [size]="18" />{{ i.pick('Daily report (PDF)', 'రోజువారీ నివేదిక (PDF)') }}
-              @if (store.sheets()[date()].reports?.length) { <span class="chip">R{{ store.sheets()[date()].reports!.length }}</span> }
-            </a>
-            <button class="btn quiet" type="button" (click)="openMove()"><app-icon name="right" [size]="18" />{{ i.pick('Wrong date? Move this day', 'తప్పు తేదీనా? ఈ రోజును మార్చు') }}</button>
-          }
         }
       </header>
 
@@ -77,15 +94,6 @@ const TYPES: { v: ExpenseType; k: Key }[] = [
 
         @if (s.closed) {
           <div class="al warn"><app-icon name="info" /><span><b>{{ i.t('closedDay') }}.</b> {{ i.t('shopClosedHint') }}</span></div>
-        }
-
-        @if (s.movedFrom) {
-          <div class="al warn"><app-icon name="info" /><span>
-            <b>{{ i.pick('Moved from ' + fmtDay(s.movedFrom), fmtDay(s.movedFrom) + ' నుంచి మార్చబడింది') }}.</b>
-            {{ prevSaved()
-              ? i.pick('Openings are from ' + fmtShort(prevDate()) + '; closings stay as counted. Check and save.', fmtShort(prevDate()) + ' ముగింపు నుంచి ప్రారంభం; ముగింపులు లెక్కించినట్లే. చూసి సేవ్ చేయండి.')
-              : i.pick('Save ' + fmtShort(prevDate()) + ' first. Openings will then follow it and closings stay as counted.', 'ముందు ' + fmtShort(prevDate()) + ' సేవ్ చేయండి. ప్రారంభ నిల్వలు దాని నుంచి వస్తాయి, ముగింపులు అలాగే ఉంటాయి.') }}
-          </span></div>
         }
 
         <app-alerts [alerts]="dayAlerts()" [notes]="s.notes" (add)="addNote($event)" (remove)="removeNote($event)" />
@@ -205,7 +213,7 @@ const TYPES: { v: ExpenseType; k: Key }[] = [
         </section>
 
         <div class="fab-bar">
-          <button class="btn primary" type="button" (click)="save()" [disabled]="!!s.movedFrom && !prevSaved()">{{ s.status === 'saved' ? i.t('savedTapAgain') : i.t('saveDay') + ' · ' + fmtShort(date()) }}</button>
+          <button class="btn primary" type="button" (click)="save()">{{ s.status === 'saved' ? i.t('savedTapAgain') : i.t('saveDay') + ' · ' + fmtShort(date()) }}</button>
         </div>
       }
     </main>
@@ -235,6 +243,33 @@ const TYPES: { v: ExpenseType; k: Key }[] = [
           <div class="row">
             <button class="btn grow" type="button" (click)="moveOpen.set(false)" style="min-height: 56px">{{ i.t('cancel') }}</button>
             <button class="btn primary" type="button" style="flex: 2" [disabled]="!moveTo() || !!moveProblem() || moving()" (click)="move()">{{ i.pick('Move to', 'మార్చు') }} {{ moveTo() ? fmtShort(moveTo()) : '' }}</button>
+          </div>
+        </section>
+      </div>
+    }
+
+    @if (clearOpen()) {
+      <div class="sheet-backdrop" (click)="clearOpen.set(false)">
+        <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="clearTitle" (click)="$event.stopPropagation()">
+          <div class="handle"></div>
+          <div>
+            <h2 id="clearTitle" class="title" style="font-size: 22px; line-height: 34px">{{ i.pick('Clear ' + fmtShort(date()) + ' and enter again?', fmtShort(date()) + ' తుడిచి మళ్లీ నమోదు చేయాలా?') }}</h2>
+          </div>
+          <ul class="small" style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px">
+            <li>{{ i.pick('Everything on this form is removed: counts, expenses, UPI, cash and notes.', 'ఈ ఫారమ్‌లోని మొత్తం తొలగిస్తారు.') }}</li>
+            @if (sheet()?.status === 'saved' || store.sheets()[date()]?.savedAt) { <li>{{ i.pick('Its sales, stock and cash records are removed too.', 'దాని అమ్మకాలు, స్టాక్, నగదు రికార్డులు కూడా తొలగిస్తారు.') }}</li> }
+            @if (moveInwards()) { <li>{{ i.pick(moveInwards() + (moveInwards() === 1 ? ' delivery' : ' deliveries') + ' for this day ' + (moveInwards() === 1 ? 'is' : 'are') + ' deleted, with the buy costs they set.', moveInwards() + ' సరుకు రాకలు కూడా తొలగిస్తారు.') }}</li> }
+            @if (prevSaved() || first()) {
+              <li>{{ i.pick('The day starts again' + (prevSaved() ? ' with openings from ' + fmtShort(prevDate()) : '') + '.', 'రోజు మళ్లీ మొదలవుతుంది.') }}</li>
+            } @else {
+              <li>{{ i.pick('The day becomes empty. You can enter it once ' + fmtShort(prevDate()) + ' is saved.', fmtShort(prevDate()) + ' సేవ్ అయ్యాక ఈ రోజు నమోదు చేయవచ్చు.') }}</li>
+            }
+            @if (laterSaved()) { <li>{{ i.pick('Later saved days keep their openings. If your new counts differ, they will show as not matching.', 'తర్వాతి రోజుల ప్రారంభ నిల్వలు సరిపోలకపోతే హెచ్చరిక వస్తుంది.') }}</li> }
+            <li>{{ i.pick('A safety copy is kept: Settings → Undo brings it back.', 'కాపీ ఉంచబడుతుంది: సెట్టింగ్స్‌లో రద్దు చేయవచ్చు.') }}</li>
+          </ul>
+          <div class="row">
+            <button class="btn grow" type="button" (click)="clearOpen.set(false)" style="min-height: 56px">{{ i.t('cancel') }}</button>
+            <button class="btn primary" type="button" style="flex: 2" [disabled]="moving()" (click)="clearDay()">{{ i.pick('Clear', 'తుడిచి') }} {{ fmtShort(date()) }}</button>
           </div>
         </section>
       </div>
@@ -469,7 +504,10 @@ export class Entry implements OnDestroy {
     const s = this.sheet();
     if (!s) return;
     // A moved form's openings aren't known until the day before is saved.
-    if (s.movedFrom && !this.prevSaved()) return;
+    if (s.movedFrom && !this.prevSaved()) {
+      this.toast.show(this.i.pick(`Save ${fmtShort(this.prevDate())} first. This day was moved here and its openings come from that day.`, `ముందు ${fmtShort(this.prevDate())} సేవ్ చేయండి.`), 4000);
+      return;
+    }
     clearTimeout(this.timer);
     const saved = await this.store.saveSheet({ ...s, updatedAt: new Date().toISOString() });
     this.sheet.set(saved);
@@ -529,6 +567,24 @@ export class Entry implements OnDestroy {
     if (there) return this.i.pick(`${fmtDay(to)} already has a ${there.status === 'saved' ? 'saved' : 'draft'} form. Move or clear that one first.`, `${fmtDay(to)} కి ఇప్పటికే ఫారమ్ ఉంది.`);
     return null;
   });
+
+  protected menuOpen = linkedSignal(() => (this.date(), false));
+  protected clearOpen = linkedSignal(() => (this.date(), false));
+  protected laterSaved = computed(() => this.store.savedDates().some((d) => d > this.date()));
+
+  protected async clearDay() {
+    const date = this.date();
+    this.moving.set(true);
+    try {
+      clearTimeout(this.timer);
+      this.touched.set(false);
+      await this.store.clearDay(date);
+      this.clearOpen.set(false);
+      this.toast.show(this.i.pick(`${fmtShort(date)} cleared`, `${fmtShort(date)} తుడిచారు`));
+    } finally {
+      this.moving.set(false);
+    }
+  }
 
   protected openMove() {
     this.flush();

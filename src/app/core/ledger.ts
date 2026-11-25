@@ -201,3 +201,18 @@ export function moveDayData(data: LedgerData, from: string, to: string, now = ne
     prices: data.prices?.map((p) => (p.inwardId && movedInwards.has(p.inwardId) ? { ...p, from: to } : p)),
   };
 }
+
+/**
+ * Start a day again: its form, its deliveries and the buy costs those deliveries set are removed.
+ * The day then opens as a new form from the day before. Later saved days keep their openings,
+ * so they show up as not matching until fixed.
+ */
+export function clearDayData(data: LedgerData, date: string): LedgerData {
+  const gone = new Set(data.inwards.filter((w) => w.date === date).map((w) => w.id));
+  return {
+    ...data,
+    sheets: data.sheets.filter((s) => s.date !== date),
+    inwards: data.inwards.filter((w) => !gone.has(w.id)),
+    prices: data.prices?.filter((p) => !(p.inwardId && gone.has(p.inwardId))),
+  };
+}

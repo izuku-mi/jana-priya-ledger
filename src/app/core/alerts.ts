@@ -41,7 +41,7 @@ export class Alerts {
     const out: Alert[] = [];
     for (const d of this.store.staleDates()) {
       out.push(this.a('critical', `${fmtShort(d)}: openings don't match ${fmtShort(addDays(d, -1))} closing.`, `${fmtShort(d)}: ప్రారంభ నిల్వ ${fmtShort(addDays(d, -1))} ముగింపుతో సరిపోలడం లేదు.`,
-        'Open that day and tap Fetch previous closing.', 'ఆ రోజు తెరిచి "నిన్నటి ముగింపు తెచ్చుకో" నొక్కండి.'));
+        'Open that day and tap ⋮ → Match openings.', 'ఆ రోజు తెరిచి ⋮ → ప్రారంభం సరిచేయి నొక్కండి.'));
     }
     for (const [a, b] of this.store.duplicateSkus()) {
       out.push(this.a('warn', `${a.nameEn} ${a.size} is in the catalog twice.`, `${a.nameTe} ${a.size} కేటలాగ్‌లో రెండుసార్లు ఉంది.`,
@@ -116,7 +116,7 @@ export class Alerts {
       out.push(this.a('warn', `${e.label || '—'} ${inr(e.amount)} is filed under Misc / others.`, `${e.label || '—'} ${inr(e.amount)} ఇతరాలుగా ఉంది.`, 'Change the type if you know it.', 'తెలిస్తే రకం మార్చండి.'));
     }
     if (this.store.staleDates().includes(sheet.date)) {
-      out.push(this.a('critical', 'Openings don\'t match the previous closing.', 'ప్రారంభ నిల్వ నిన్నటి ముగింపుతో సరిపోలడం లేదు.', 'Tap Fetch previous closing.', '"నిన్నటి ముగింపు తెచ్చుకో" నొక్కండి.'));
+      out.push(this.a('critical', 'Openings don\'t match the previous closing.', 'ప్రారంభ నిల్వ నిన్నటి ముగింపుతో సరిపోలడం లేదు.', 'Tap ⋮ → Match openings.', '⋮ → ప్రారంభం సరిచేయి నొక్కండి.'));
     }
     // Low stock as of this day once saved, otherwise as of the day before.
     const basis = sheet.status === 'saved' && this.store.balances()[sheet.date] ? sheet.date : addDays(sheet.date, -1);

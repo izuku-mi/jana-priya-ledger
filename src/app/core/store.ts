@@ -3,7 +3,7 @@ import { seedCatalog } from './catalog-seed';
 import { addDays, todayIso } from './dates';
 import { uid } from './format';
 import {
-  applyOpeningFix, deriveDay, FixMode, landedCosts, moveDayData, newSheet, openingDiffs, PriceOf, rowFromSku, withAutoClosing,
+  applyOpeningFix, deriveDay, FixMode, clearDayData, landedCosts, moveDayData, newSheet, openingDiffs, PriceOf, rowFromSku, withAutoClosing,
 } from './ledger';
 import { convertLegacy, LegacyBackup } from './legacy';
 import { Balance, CashDay, DailySheet, DEFAULT_SETTINGS, Inward, LedgerData, Movement, Note, PriceChange, ReportRecord, Settings, SheetRow, Sku } from './model';
@@ -283,6 +283,13 @@ export class LedgerStore {
     sheet.closed = true;
     sheet.expenses = [];
     return this.saveSheet(sheet);
+  }
+
+  /** Start a day again from scratch: its form and deliveries are removed (safety copy kept). */
+  async clearDay(date: string) {
+    const next = clearDayData(this.currentData(), date);
+    await this.repo.putSafetyCopy(await this.buildBackup());
+    await this.replaceAll(next);
   }
 
   // ---------- inward stock ----------

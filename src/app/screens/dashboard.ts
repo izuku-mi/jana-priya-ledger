@@ -41,7 +41,10 @@ import { Toast } from '../ui/toast';
       <section class="hero">
         <div class="row-between">
           <span class="label muted">{{ i.t('sales') }}</span>
-          <span class="cap">{{ coverage() }}</span>
+          <span class="row" style="gap: 4px">
+            <span class="cap">{{ coverage() }}</span>
+            <button class="btn icon quiet" type="button" style="width: 40px; min-height: 40px; margin: -8px -8px -8px 0" (click)="downloadReport()" [attr.aria-label]="reportName() + ' ' + i.pick('report', 'నివేదిక')" [title]="reportName() + ' ' + i.pick('report', 'నివేదిక')"><app-icon name="download" /></button>
+          </span>
         </div>
         <div class="big">{{ inr(sum().gross) }}</div>
         <div class="small muted">{{ prevLine() }}</div>
@@ -53,16 +56,6 @@ import { Toast } from '../ui/toast';
         <div class="kpi"><div class="cap">{{ i.t('bottlesSold') }}</div><b>{{ group(sum().units) }}</b><div class="cap">{{ i.t('liquorAndBeer') }}</div></div>
         <div class="kpi"><div class="cap">{{ i.t('stockValue') }}</div><b>{{ inr(stockNow().value) }}</b><div class="cap">{{ group(stockNow().bottles) }} · {{ i.t('atSellRate') }}</div></div>
       </div>
-
-      <section class="card tight">
-        <div class="row-between"><h2 class="title">{{ i.pick('Reports', 'నివేదికలు') }}</h2><span class="chip">{{ i.pick('Coming soon', 'త్వరలో') }}</span></div>
-        <div class="row" style="flex-wrap: wrap">
-          @for (k of kinds; track k) {
-            <button class="btn grow" type="button" (click)="downloadReport(k)"><app-icon name="download" [size]="18" />{{ reportName(k) }}</button>
-          }
-        </div>
-        <div class="cap">{{ i.pick('PDF of the ' + i.t(kind()).toLowerCase() + ' shown above: sales, stock, expenses and profit.', 'పైన చూపిన కాలానికి PDF: అమ్మకాలు, స్టాక్, ఖర్చులు, లాభం.') }}</div>
-      </section>
 
       <section class="card">
         <div class="row-between"><h2 class="title">{{ kind() === 'year' ? i.t('salesByMonth') : i.t('salesByDay') }}</h2></div>
@@ -179,17 +172,16 @@ export class Dashboard {
     this.anchor.set(k === 'week' ? addDays(a, 7 * n) : k === 'month' ? addMonths(a, n) : addMonths(a, 12 * n));
   }
 
-  protected reportName(k: PeriodKind) {
-    return { week: this.i.pick('Weekly', 'వారపు'), month: this.i.pick('Monthly', 'నెలవారీ'), year: this.i.pick('Yearly', 'వార్షిక') }[k];
+  protected reportName() {
+    return { week: this.i.pick('Weekly', 'వారపు'), month: this.i.pick('Monthly', 'నెలవారీ'), year: this.i.pick('Yearly', 'వార్షిక') }[this.kind()];
   }
 
-  /** Placeholder until period reports are built: it names the period the report will cover. */
-  protected downloadReport(k: PeriodKind) {
-    const s = this.store.settings();
-    const p = periodOf(k, this.anchor(), s.weekStart, s.yearStartMonth);
+  /** Placeholder until period reports are built: the report for the tab and period shown. */
+  protected downloadReport() {
+    const p = this.period();
     this.toast.show(this.i.pick(
-      `${this.reportName(k)} report (${fmtShort(p.start)} – ${fmtShort(p.end)}) is coming soon`,
-      `${this.reportName(k)} నివేదిక (${fmtShort(p.start)} – ${fmtShort(p.end)}) త్వరలో వస్తుంది`,
+      `${this.reportName()} report (${fmtShort(p.start)} – ${fmtShort(p.end)}) is coming soon`,
+      `${this.reportName()} నివేదిక (${fmtShort(p.start)} – ${fmtShort(p.end)}) త్వరలో వస్తుంది`,
     ));
   }
 

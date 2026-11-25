@@ -114,4 +114,29 @@ describe('LedgerStore through a repository', () => {
     expect(saved.movedFrom).toBeUndefined();
     expect(store.balances()['2026-11-06']['L54']).toBe(120);
   });
+  it('clears a saved day with its delivery, so it can be entered again', async () => {
+    await saveDay('2026-11-03', { L54: 100 }, { L54: 100 });
+    await store.saveInward({
+      id: 'w4', date: '2026-11-04', supplier: '', invoiceNo: '', invoiceTotal: null, notes: [], savedAt: '',
+      lines: [{ skuId: 'L54', qty: 50, cost: 90 }], charges: [],
+    });
+    await store.saveSheet(store.sheets()['2026-11-04']);
+    await saveDay('2026-11-05', { L54: 140 });
+    expect(store.staleDates()).toEqual([]);
+
+    await store.clearDay('2026-11-04');
+
+    expect(store.sheets()['2026-11-04']).toBeUndefined();
+    expect(store.inwards()).toEqual([]);
+    expect(store.prices().some((p) => p.inwardId === 'w4')).toBe(false);
+    expect(store.cashDays()['2026-11-04']).toBeUndefined();
+    expect(repo.movements.some((m) => m.date === '2026-11-04')).toBe(false);
+    expect(await store.hasSafetyCopy()).toBe(true);
+    const fresh = store.sheetState('2026-11-04');
+    expect(fresh.kind === 'ready' && [fresh.isNew, fresh.sheet.rows['L54'].o, fresh.sheet.rows['L54'].r]).toEqual([true, 100, 0]);
+
+    // Re-entered with different counts: Nov 5 no longer matches until fixed.
+    await saveDay('2026-11-04', { L54: 95 });
+    expect(store.staleDates()).toEqual(['2026-11-05']);
+  });
 });
