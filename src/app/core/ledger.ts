@@ -12,13 +12,17 @@ export const withAutoClosing = (r: SheetRow): SheetRow => (r.cEdited ? r : { ...
 export const sortRows = (rows: SheetRow[]) =>
   [...rows].sort((a, b) => (a.cat === b.cat ? a.sno - b.sno : a.cat === 'LIQUOR' ? -1 : 1));
 
-export function rowFromSku(s: Sku, opening: number): SheetRow {
+/** A brand's row with its price for the day (the catalog price when none is given). */
+export function rowFromSku(s: Sku, opening: number, price: { rate: number; cost: number } = s): SheetRow {
   return {
     skuId: s.id, cat: s.cat, sno: s.sno, nameEn: s.nameEn, nameTe: s.nameTe, size: s.size,
     o: opening, r: 0, i: 0, c: opening, cEdited: false, rFromInward: false, issueReason: '',
-    rate: s.rate, cost: s.cost,
+    rate: price.rate, cost: price.cost,
   };
 }
+
+/** Looks up a brand's price on the form's date. */
+export type PriceOf = (sku: Sku) => { rate: number; cost: number };
 
 export function emptySheet(date: string): DailySheet {
   const now = new Date().toISOString();
@@ -32,11 +36,11 @@ export function emptySheet(date: string): DailySheet {
  * A new day's form: every active catalog brand, opening = previous saved day's closing,
  * closing = opening. Brands that are no longer in the catalog but still hold stock are kept.
  */
-export function newSheet(date: string, prev: DailySheet | null, catalog: Sku[]): DailySheet {
+export function newSheet(date: string, prev: DailySheet | null, catalog: Sku[], priceOf: PriceOf = (s) => s): DailySheet {
   const sheet = emptySheet(date);
   for (const s of catalog) {
     if (!s.active) continue;
-    sheet.rows[s.id] = rowFromSku(s, prev?.rows[s.id]?.c ?? 0);
+    sheet.rows[s.id] = rowFromSku(s, prev?.rows[s.id]?.c ?? 0, priceOf(s));
   }
   if (prev) {
     for (const p of Object.values(prev.rows)) {

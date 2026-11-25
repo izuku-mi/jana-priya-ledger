@@ -3,10 +3,11 @@ import { seedCatalog } from './catalog-seed';
 import { addDays, todayIso } from './dates';
 import { uid } from './format';
 import {
-  applyOpeningFix, deriveDay, FixMode, landedCosts, newSheet, openingDiffs, rowFromSku, weightedAverage, withAutoClosing,
+  applyOpeningFix, deriveDay, FixMode, landedCosts, newSheet, openingDiffs, PriceOf, rowFromSku, withAutoClosing,
 } from './ledger';
 import { convertLegacy, LegacyBackup } from './legacy';
-import { Balance, CashDay, DailySheet, DEFAULT_SETTINGS, Inward, LedgerData, Movement, Note, ReportRecord, Settings, SheetRow, Sku } from './model';
+import { Balance, CashDay, DailySheet, DEFAULT_SETTINGS, Inward, LedgerData, Movement, Note, PriceChange, ReportRecord, Settings, SheetRow, Sku } from './model';
+import { mergePriceChanges, priceIndex, priceOn, pricesFromSheets, repriceSheet } from './pricing';
 import { LEDGER_REPOSITORY } from './repository';
 
 export type SheetState =
@@ -50,6 +51,9 @@ export class LedgerStore {
   readonly balances = signal<Record<string, Record<string, number>>>({});
   /** Notes not tied to a day or delivery (dashboard, stock, P&L screens). */
   readonly notes = signal<Note[]>([]);
+  /** Price history: what each brand cost and sold for, from which date. */
+  readonly prices = signal<PriceChange[]>([]);
+  readonly priceIdx = computed(() => priceIndex(this.prices()));
 
   readonly skuMap = computed(() => new Map(this.skus().map((s) => [s.id, s])));
   readonly savedDates = computed(() => Object.values(this.sheets()).filter((s) => s.status === 'saved').map((s) => s.date).sort());
@@ -89,6 +93,7 @@ export class LedgerStore {
     this.settings.set({ ...DEFAULT_SETTINGS, ...(st.settings ?? {}) });
     this.sheets.set(Object.fromEntries(st.sheets.map((s) => [s.date, s])));
     this.inwards.set(st.inwards);
+    this.prices.set(st.prices);
     this.cashDays.set(Object.fromEntries(st.cashDays.map((c) => [c.date, c])));
     this.movements.set(st.movements);
     this.balances.set(this.groupBalances(st.balances));
@@ -143,10 +148,71 @@ export class LedgerStore {
     if (existing) return { kind: 'ready', sheet: existing, isNew: false, first: !this.savedDates().some((d) => d < date) };
     const before = this.savedDates().filter((d) => d < date);
     const lastBefore = before.at(-1);
-    if (!lastBefore) return { kind: 'ready', sheet: newSheet(date, null, this.skus()), isNew: true, first: true };
+    if (!lastBefore) return { kind: 'ready', sheet: newSheet(date, null, this.skus(), this.priceOf(date)), isNew: true, first: true };
     const yesterday = addDays(date, -1);
     if (lastBefore !== yesterday) return { kind: 'blocked', missing: addDays(lastBefore, 1), lastSaved: lastBefore };
-    return { kind: 'ready', sheet: newSheet(date, all[yesterday], this.skus()), isNew: true, first: false };
+    return { kind: 'ready', sheet: newSheet(date, all[yesterday], this.skus(), this.priceOf(date)), isNew: true, first: false };
+  }
+
+  // ---------- prices by date ----------
+
+  /** Each brand's price on a date, from the price history (catalog price when there is none). */
+  priceOf(date: string): PriceOf {
+    const idx = this.priceIdx();
+    return (s) => priceOn(s, date, idx);
+  }
+
+  /**
+   * Record price changes, then put the right prices on every form from the earliest change onwards.
+   * Saved days are re-saved so their sales value, cost and cash follow the new prices.
+   */
+  async setPrices(changes: PriceChange[]) {
+    if (!changes.length) return;
+    const before = this.prices();
+    const next = mergePriceChanges(before, changes);
+    const touched = next.filter((p) => !before.includes(p));
+    await this.repo.putPrices(touched);
+    this.prices.set(next);
+    await this.afterPriceChange(changes.map((c) => c.from), new Set(changes.map((c) => c.skuId)));
+  }
+
+  async removePrices(ids: string[]) {
+    const gone = this.prices().filter((p) => ids.includes(p.id));
+    if (!gone.length) return;
+    await this.repo.deletePrices(ids);
+    this.prices.update((list) => list.filter((p) => !ids.includes(p.id)));
+    await this.afterPriceChange(gone.map((p) => p.from), new Set(gone.map((p) => p.skuId)));
+  }
+
+/**
+   * Forms from the earliest changed date get repriced. The catalog price itself is left alone:
+   * it is the default before a brand's first change.
+   */
+  private async afterPriceChange(dates: string[], _skuIds: Set<string>) {
+    await this.repriceFrom(dates.sort()[0]);
+  }
+
+  /** A brand's price today (or on a date): what screens show as its current rate and cost. */
+  priceToday(sku: Sku, date = todayIso()) {
+    return priceOn(sku, date, this.priceIdx());
+  }
+
+  private async repriceFrom(from: string) {
+    const idx = this.priceIdx();
+    const skus = this.skuMap();
+    for (const sheet of Object.values(this.sheets()).filter((s) => s.date >= from).sort((a, b) => a.date.localeCompare(b.date))) {
+      const next = repriceSheet(sheet, idx, skus);
+      if (!next) continue;
+      if (next.status === 'saved') {
+        const d = deriveDay(next);
+        await this.repo.saveDay(next, d);
+        this.movements.update((list) => [...list.filter((x) => x.date !== next.date), ...d.movements]);
+        this.cashDays.update((c) => ({ ...c, [next.date]: d.cashDay }));
+      } else {
+        await this.repo.putSheet(next);
+      }
+      this.sheets.update((m) => ({ ...m, [next.date]: next }));
+    }
   }
 
   previousSaved(date: string): DailySheet | null {
@@ -202,7 +268,7 @@ export class LedgerStore {
 
   /** Shop closed: saved with no sales, stock carried forward. */
   async markClosed(date: string) {
-    const sheet = newSheet(date, this.previousSaved(date), this.skus());
+    const sheet = newSheet(date, this.previousSaved(date), this.skus(), this.priceOf(date));
     sheet.closed = true;
     sheet.expenses = [];
     return this.saveSheet(sheet);
@@ -219,9 +285,10 @@ export class LedgerStore {
     const qty = new Map<string, number>();
     for (const w of deliveries) for (const l of w.lines) qty.set(l.skuId, (qty.get(l.skuId) ?? 0) + l.qty);
     const skus = this.skuMap();
+    const priceOf = this.priceOf(sheet.date);
     for (const [id, q] of qty) {
       const sku = skus.get(id);
-      if (!sheet.rows[id] && sku) sheet.rows[id] = rowFromSku(sku, 0);
+      if (!sheet.rows[id] && sku) sheet.rows[id] = rowFromSku(sku, 0, priceOf(sku));
       if (sheet.rows[id]) sheet.rows[id] = withAutoClosing({ ...sheet.rows[id], r: q, rFromInward: true });
     }
     for (const row of Object.values(sheet.rows)) {
@@ -231,8 +298,8 @@ export class LedgerStore {
   }
 
   /**
-   * Save a delivery: that day's receipts become the sum of its deliveries, and each brand's
-   * buy cost becomes the weighted average including its share of the charges.
+   * Save a delivery: that day's receipts become the sum of its deliveries, and each brand's buy cost
+   * from the delivery date is its landed cost (buy price plus its share of the charges).
    */
   async saveInward(inward: Inward) {
     const state = this.sheetState(inward.date);
@@ -240,24 +307,21 @@ export class LedgerStore {
     await this.repo.putInward(inward);
     const all = [...this.inwards().filter((w) => w.id !== inward.id), inward];
     this.inwards.set(all);
+    await this.saveDraft(this.applyDeliveries(structuredClone(state.sheet), all.filter((w) => w.date === inward.date)));
 
-    const sheet = this.applyDeliveries(structuredClone(state.sheet), all.filter((w) => w.date === inward.date));
+    // Replace this delivery's earlier cost entries (if it is being edited) with its landed costs.
+    const old = this.prices().filter((p) => p.inwardId === inward.id).map((p) => p.id);
+    if (old.length) {
+      await this.repo.deletePrices(old);
+      this.prices.update((list) => list.filter((p) => !old.includes(p.id)));
+    }
     const landed = landedCosts(inward.lines, inward.charges);
-    const changed: Sku[] = [];
-    for (const l of inward.lines) {
-      const sku = this.skuMap().get(l.skuId);
-      const unit = landed.get(l.skuId);
-      if (!sku || unit == null || !(l.cost > 0)) continue;
-      const cost = Math.round(weightedAverage(sheet.rows[l.skuId]?.o ?? 0, sku.cost, l.qty, unit) * 100) / 100;
-      changed.push({ ...sku, cost });
-      if (sheet.rows[l.skuId]) sheet.rows[l.skuId] = { ...sheet.rows[l.skuId], cost };
-    }
-    if (changed.length) {
-      await this.repo.putSkus(changed);
-      const byId = new Map(changed.map((s) => [s.id, s]));
-      this.skus.update((list) => list.map((s) => byId.get(s.id) ?? s));
-    }
-    await this.saveDraft(sheet);
+    const at = new Date().toISOString();
+    const costs: PriceChange[] = inward.lines
+      .filter((l) => l.cost > 0 && landed.has(l.skuId))
+      .map((l) => ({ id: `in-${inward.id}-${l.skuId}`, skuId: l.skuId, from: inward.date, cost: Math.round(landed.get(l.skuId)! * 100) / 100, source: 'inward', inwardId: inward.id, at }));
+    if (costs.length) await this.setPrices(costs);
+    else if (old.length) await this.repriceFrom(inward.date);
   }
 
   async deleteInward(id: string) {
@@ -267,12 +331,13 @@ export class LedgerStore {
     this.inwards.update((list) => list.filter((x) => x.id !== id));
     const state = this.sheetState(w.date);
     if (state.kind === 'ready') await this.saveDraft(this.applyDeliveries(structuredClone(state.sheet), this.inwardsFor(w.date)));
+    await this.removePrices(this.prices().filter((p) => p.inwardId === id).map((p) => p.id));
   }
 
   // ---------- backup & restore ----------
 
   private currentData(): LedgerData {
-    return { settings: this.settings(), skus: this.skus(), sheets: Object.values(this.sheets()), inwards: this.inwards(), notes: this.notes() };
+    return { settings: this.settings(), skus: this.skus(), sheets: Object.values(this.sheets()), inwards: this.inwards(), notes: this.notes(), prices: this.prices() };
   }
 
   async buildBackup(): Promise<BackupFile> {
@@ -310,17 +375,21 @@ export class LedgerStore {
   async importLegacy(src: LegacyBackup, from: string, to: string) {
     const out = convertLegacy(src, from, to);
     await this.repo.putSafetyCopy(await this.buildBackup());
-    await this.replaceAll({ settings: { ...this.settings() }, skus: out.skus, sheets: out.sheets, inwards: [], notes: this.notes() });
+    await this.replaceAll({ settings: { ...this.settings() }, skus: out.skus, sheets: out.sheets, inwards: [], notes: this.notes(), prices: pricesFromSheets(out.sheets) });
     return out;
   }
 
   async eraseAll() {
     await this.repo.putSafetyCopy(await this.buildBackup());
-    await this.replaceAll({ settings: DEFAULT_SETTINGS, skus: seedCatalog(), sheets: [], inwards: [], notes: [] });
+    await this.replaceAll({ settings: DEFAULT_SETTINGS, skus: seedCatalog(), sheets: [], inwards: [], notes: [], prices: [] });
   }
 
   private async replaceAll(data: LedgerData) {
-    const clean: LedgerData = { ...data, settings: { ...DEFAULT_SETTINGS, ...data.settings }, notes: data.notes ?? [] };
+    // Backups from before price history carry prices on each day's form; rebuild the history from them.
+    const clean: LedgerData = {
+      ...data, settings: { ...DEFAULT_SETTINGS, ...data.settings }, notes: data.notes ?? [],
+      prices: data.prices ?? pricesFromSheets(data.sheets),
+    };
     await this.repo.replaceAll(clean, clean.sheets.filter((s) => s.status === 'saved').map(deriveDay));
     this.ready.set(false);
     await this.init();

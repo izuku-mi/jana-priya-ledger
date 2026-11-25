@@ -1,5 +1,6 @@
 import Dexie, { Table } from 'dexie';
-import { Balance, CashDay, DailySheet, Inward, Movement, Sku } from './model';
+import { Balance, CashDay, DailySheet, Inward, Movement, PriceChange, Sku } from './model';
+import { pricesFromSheets } from './pricing';
 
 export interface MetaRow {
   key: string;
@@ -8,8 +9,8 @@ export interface MetaRow {
 
 /**
  * Everything lives in this browser's IndexedDB.
- * `sheets`, `inwards`, `skus` and `meta` are entered data; `movements`, `balances` and `cashDays`
- * are rebuilt from the sheets on every Save and on restore.
+ * `sheets`, `inwards`, `skus`, `prices` and `meta` are entered data; `movements`, `balances` and
+ * `cashDays` are rebuilt from the sheets on every Save and on restore.
  */
 export class LedgerDb extends Dexie {
   skus!: Table<Sku, string>;
@@ -18,6 +19,7 @@ export class LedgerDb extends Dexie {
   movements!: Table<Movement, number>;
   balances!: Table<Balance, string>;
   cashDays!: Table<CashDay, string>;
+  prices!: Table<PriceChange, string>;
   meta!: Table<MetaRow, string>;
 
   constructor(name = 'jana-priya-ledger') {
@@ -31,5 +33,12 @@ export class LedgerDb extends Dexie {
       cashDays: 'date',
       meta: 'key',
     });
+    // v2: prices by date. Existing days already carry their prices, so the history is rebuilt from them.
+    this.version(2)
+      .stores({ prices: 'id, skuId, from' })
+      .upgrade(async (tx) => {
+        const sheets = await tx.table<DailySheet, string>('sheets').toArray();
+        await tx.table<PriceChange, string>('prices').bulkPut(pricesFromSheets(sheets));
+      });
   }
 }

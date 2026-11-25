@@ -67,7 +67,7 @@ const blank = (date: string): Inward => ({
             <div class="card" style="padding: 4px 16px; gap: 0">
               @for (s of results(); track s.id) {
                 <button type="button" class="ln" style="width: 100%; background: transparent; border-left: 0; border-right: 0; border-top: 0; cursor: pointer; text-align: left" (click)="addLine(s.id)">
-                  <span>{{ i.name(s) }} {{ s.size }}</span><span class="cap">₹{{ group(s.rate) }}</span>
+                  <span>{{ i.name(s) }} {{ s.size }}</span><span class="cap">₹{{ group(store.priceToday(s, draft().date).rate) }}</span>
                 </button>
               }
             </div>
@@ -163,7 +163,7 @@ export class InwardScreen {
     const skus = this.store.skuMap();
     return this.draft().lines.map((l) => {
       const s = skus.get(l.skuId);
-      return { ...l, name: s ? `${this.i.name(s)} ${s.size}` : l.skuId, rate: s?.rate ?? 0 };
+      return { ...l, name: s ? `${this.i.name(s)} ${s.size}` : l.skuId, rate: s ? this.store.priceToday(s, this.draft().date).rate : 0 };
     });
   });
 
@@ -172,7 +172,11 @@ export class InwardScreen {
     const skus = this.store.skuMap();
     const bottles = d.lines.reduce((a, l) => a + l.qty, 0);
     const buyValue = d.lines.reduce((a, l) => a + l.qty * l.cost, 0);
-    const sellValue = d.lines.reduce((a, l) => a + l.qty * (skus.get(l.skuId)?.rate ?? 0), 0);
+    const rateOf = (id: string) => {
+      const s = skus.get(id);
+      return s ? this.store.priceToday(s, d.date).rate : 0;
+    };
+    const sellValue = d.lines.reduce((a, l) => a + l.qty * rateOf(l.skuId), 0);
     const missingCost = d.lines.filter((l) => l.qty > 0 && !(l.cost > 0)).length;
     const charges = d.charges.reduce((a, c) => a + c.amount, 0);
     const total = buyValue + charges;
@@ -194,7 +198,14 @@ export class InwardScreen {
 
   protected addLine(skuId: string) {
     const s = this.store.skuMap().get(skuId);
-    this.draft.update((d) => ({ ...d, lines: [...d.lines, { skuId, qty: 0, cost: s?.cost ? Math.round(s.cost) : 0 }] }));
+    // Buy price starts at what the last delivery on or before this date paid per bottle (before charges),
+    // else the price list's cost for the date.
+    const date = this.draft().date;
+    const lastDelivery = this.store.inwards()
+      .filter((w) => w.id !== this.draft().id && w.date <= date && w.lines.some((l) => l.skuId === skuId && l.cost > 0))
+      .sort((a, b) => a.date.localeCompare(b.date)).at(-1);
+    const last = lastDelivery?.lines.find((l) => l.skuId === skuId)?.cost ?? (s ? this.store.priceToday(s, date).cost : 0);
+    this.draft.update((d) => ({ ...d, lines: [...d.lines, { skuId, qty: 0, cost: last ? Math.round(last) : 0 }] }));
     this.q.set('');
   }
 

@@ -5,14 +5,16 @@ import { I18n } from '../core/i18n';
 import { isLegacyBackup, LegacyBackup } from '../core/legacy';
 import { Cat, Sku } from '../core/model';
 import { BackupFile, isBackupFile, LedgerStore } from '../core/store';
+import { RouterLink } from '@angular/router';
 import { Icon } from '../ui/icon';
+import { PriceHistory } from '../ui/price-history';
 import { Toast } from '../ui/toast';
 
 type Pending = { kind: 'backup'; file: BackupFile; ok: boolean } | { kind: 'legacy'; file: LegacyBackup; dates: string[] };
 
 @Component({
   selector: 'app-settings',
-  imports: [Icon],
+  imports: [Icon, PriceHistory, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="screen">
@@ -100,16 +102,21 @@ type Pending = { kind: 'backup'; file: BackupFile; ok: boolean } | { kind: 'lega
       <section class="card tight">
         <div class="row-between"><h2 class="title">{{ i.t('catalog') }}</h2><span class="cap">{{ store.skus().length }}</span></div>
         <input class="input" [placeholder]="i.t('searchBrand')" [value]="q()" (input)="q.set($any($event.target).value)" />
-        <div class="cap" style="display: grid; grid-template-columns: minmax(0, 1fr) 76px 76px 40px; gap: 6px"><span></span><span style="text-align: right">{{ i.t('sellRate') }}</span><span style="text-align: right">{{ i.t('buyCost') }}</span><span>{{ i.t('activeBrand') }}</span></div>
+        <a class="btn" routerLink="/prices"><app-icon name="note" [size]="18" />{{ i.pick('Price list from a date (many brands)', 'తేదీ నుంచి ధరల జాబితా (చాలా బ్రాండ్లు)') }}</a>
+        <div class="cap" style="display: grid; grid-template-columns: minmax(0, 1fr) 110px 40px; gap: 6px"><span>{{ i.pick('Price today: sell / buy. Tap a brand for its history.', 'ఈ రోజు ధర: అమ్మకం / కొనుగోలు. చరిత్రకు బ్రాండ్ నొక్కండి.') }}</span><span></span><span>{{ i.t('activeBrand') }}</span></div>
         @for (s of list(); track s.id) {
-          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 76px 76px 40px; gap: 6px; align-items: center; padding: 4px 0; border-top: 1px solid var(--rule)" [style.opacity]="s.active ? 1 : 0.55">
-            <span class="small"><b>{{ i.name(s) }}</b> <span class="chip">{{ s.size }}</span></span>
-            <input class="input n" style="padding: 0 8px" inputmode="numeric" [value]="s.rate || ''" placeholder="₹" (change)="setSku(s, { rate: parseCount($any($event.target).value) })" [attr.aria-label]="i.t('sellRate') + ' ' + s.nameEn" />
-            <input class="input n" style="padding: 0 8px" inputmode="numeric" [value]="s.cost ? round(s.cost) : ''" placeholder="₹" (change)="setSku(s, { cost: parseCount($any($event.target).value) })" [attr.aria-label]="i.t('buyCost') + ' ' + s.nameEn" />
-            <input type="checkbox" [checked]="s.active" (change)="setSku(s, { active: $any($event.target).checked })" style="width: 24px; height: 24px; accent-color: var(--wine)" [attr.aria-label]="i.t('activeBrand') + ' ' + s.nameEn" />
+          <div style="border-top: 1px solid var(--rule)" [style.opacity]="s.active ? 1 : 0.55">
+            <div style="display: grid; grid-template-columns: minmax(0, 1fr) 110px 40px; gap: 6px; align-items: center; padding: 4px 0">
+              <button type="button" class="small" style="border: 0; background: transparent; text-align: left; padding: 8px 0; cursor: pointer; color: inherit" [attr.aria-expanded]="open() === s.id" (click)="open.set(open() === s.id ? null : s.id)">
+                <b>{{ i.name(s) }}</b> <span class="chip">{{ s.size }}</span>
+              </button>
+              <span class="num small" style="text-align: right">₹{{ group(store.priceToday(s).rate) }} / ₹{{ group(round(store.priceToday(s).cost)) }}</span>
+              <input type="checkbox" [checked]="s.active" (change)="setSku(s, { active: $any($event.target).checked })" style="width: 24px; height: 24px; accent-color: var(--wine)" [attr.aria-label]="i.t('activeBrand') + ' ' + s.nameEn" />
+            </div>
+            @if (open() === s.id) { <app-price-history [sku]="s" /> }
           </div>
         }
-        <div class="cap">{{ i.pick('Buy cost updates itself from inward stock (weighted average).', 'కొనుగోలు ధర సరుకు రాక నుంచి సగటుగా మారుతుంది.') }}</div>
+        <div class="cap">{{ i.pick('Buy cost also comes from each inward delivery, from its date.', 'కొనుగోలు ధర ప్రతి సరుకు రాక నుంచి, ఆ తేదీ నుంచి వర్తిస్తుంది.') }}</div>
       </section>
     </main>
   `,
@@ -129,6 +136,7 @@ export class SettingsScreen implements OnInit {
 
   protected st = this.store.settings;
   protected q = signal('');
+  protected open = signal<string | null>(null);
   protected list = computed(() => {
     const q = this.q().trim().toLowerCase();
     return [...this.store.skus()]

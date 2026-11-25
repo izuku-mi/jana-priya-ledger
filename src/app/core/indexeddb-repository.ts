@@ -1,5 +1,5 @@
 import { LedgerDb } from './db';
-import { DailySheet, Inward, LedgerData, Note, Settings, Sku } from './model';
+import { DailySheet, Inward, LedgerData, Note, PriceChange, Settings, Sku } from './model';
 import { DerivedDay, LedgerRepository, StoredState } from './repository';
 
 /** Stores the ledger in this browser's IndexedDB. Works fully offline. */
@@ -7,12 +7,12 @@ export class IndexedDbRepository implements LedgerRepository {
   constructor(private db = new LedgerDb()) {}
 
   async loadAll(): Promise<StoredState> {
-    const [skus, sheets, inwards, cashDays, movements, balances, settings, notes] = await Promise.all([
+    const [skus, sheets, inwards, cashDays, movements, balances, prices, settings, notes] = await Promise.all([
       this.db.skus.toArray(), this.db.sheets.toArray(), this.db.inwards.toArray(), this.db.cashDays.toArray(),
-      this.db.movements.toArray(), this.db.balances.toArray(), this.db.meta.get('settings'), this.db.meta.get('notes'),
+      this.db.movements.toArray(), this.db.balances.toArray(), this.db.prices.toArray(), this.db.meta.get('settings'), this.db.meta.get('notes'),
     ]);
     return {
-      skus, sheets, inwards, cashDays, movements, balances,
+      skus, sheets, inwards, cashDays, movements, balances, prices,
       settings: (settings?.value as Partial<Settings>) ?? null,
       notes: (notes?.value as Note[]) ?? [],
     };
@@ -53,13 +53,22 @@ export class IndexedDbRepository implements LedgerRepository {
     await this.db.inwards.delete(id);
   }
 
+  async putPrices(changes: PriceChange[]) {
+    await this.db.prices.bulkPut(changes);
+  }
+
+  async deletePrices(ids: string[]) {
+    await this.db.prices.bulkDelete(ids);
+  }
+
   async replaceAll(data: LedgerData, derived: DerivedDay[]) {
     const db = this.db;
-    await db.transaction('rw', [db.skus, db.sheets, db.inwards, db.movements, db.balances, db.cashDays, db.meta], async () => {
-      await Promise.all([db.skus.clear(), db.sheets.clear(), db.inwards.clear(), db.movements.clear(), db.balances.clear(), db.cashDays.clear()]);
+    await db.transaction('rw', [db.skus, db.sheets, db.inwards, db.prices, db.movements, db.balances, db.cashDays, db.meta], async () => {
+      await Promise.all([db.skus.clear(), db.sheets.clear(), db.inwards.clear(), db.prices.clear(), db.movements.clear(), db.balances.clear(), db.cashDays.clear()]);
       await db.skus.bulkPut(data.skus);
       await db.sheets.bulkPut(data.sheets);
       await db.inwards.bulkPut(data.inwards);
+      await db.prices.bulkPut(data.prices ?? []);
       await db.meta.put({ key: 'settings', value: data.settings });
       await db.meta.put({ key: 'notes', value: data.notes ?? [] });
       await db.movements.bulkAdd(derived.flatMap((d) => d.movements.map(({ id: _id, ...m }) => m)));

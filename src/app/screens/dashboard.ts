@@ -137,7 +137,8 @@ export class Dashboard {
     let value = 0, bottles = 0;
     for (const [id, c] of Object.entries(bal)) {
       bottles += c;
-      value += c * (skus.get(id)?.rate ?? 0);
+      const sku = skus.get(id);
+      value += c * (sku && last ? this.store.priceToday(sku, last).rate : 0);
     }
     return { value, bottles };
   });
