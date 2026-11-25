@@ -1,4 +1,5 @@
-import { CashDay, Charge, DailySheet, InwardLine, Movement, SheetRow, Sku } from './model';
+import { addDays } from './dates';
+import { CashDay, Charge, DailySheet, InwardLine, LedgerData, Movement, SheetRow, Sku } from './model';
 
 /** Bottles available on the day. */
 export const available = (r: Pick<SheetRow, 'o' | 'r' | 'i'>) => r.o + r.r - r.i;
@@ -173,3 +174,30 @@ export function weightedAverage(stockBefore: number, oldCost: number, qty: numbe
 
 /** Days of stock left at the average daily sales. Infinity when nothing sells. */
 export const daysOfCover = (closing: number, avgDaily: number) => (avgDaily > 0 ? closing / avgDaily : Infinity);
+
+/**
+ * A form entered under the wrong date, moved to the right one, together with that day's deliveries
+ * (and the buy costs they set). The moved form becomes unsaved: its closings are kept as counted,
+ * and its openings follow the day before once that day is saved.
+ */
+export function moveDayData(data: LedgerData, from: string, to: string, now = new Date().toISOString()): LedgerData {
+  const sheet = data.sheets.find((s) => s.date === from);
+  if (!sheet) throw new Error(`No form on ${from}`);
+  if (from === to) throw new Error('Pick a different date');
+  if (data.sheets.some((s) => s.date === to)) throw new Error(`${to} already has a form`);
+
+  let moved: DailySheet = {
+    ...structuredClone(sheet), date: to, status: 'draft', savedAt: null, updatedAt: now,
+    reports: undefined, movedFrom: sheet.movedFrom ?? from,
+  };
+  const prev = data.sheets.find((s) => s.date === addDays(to, -1) && s.status === 'saved');
+  if (prev) moved = applyOpeningFix(moved, prev, Object.keys(moved.rows), 'keepClosing');
+
+  const movedInwards = new Set(data.inwards.filter((w) => w.date === from).map((w) => w.id));
+  return {
+    ...data,
+    sheets: [...data.sheets.filter((s) => s.date !== from), moved],
+    inwards: data.inwards.map((w) => (movedInwards.has(w.id) ? { ...w, date: to } : w)),
+    prices: data.prices?.map((p) => (p.inwardId && movedInwards.has(p.inwardId) ? { ...p, from: to } : p)),
+  };
+}

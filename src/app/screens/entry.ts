@@ -50,6 +50,7 @@ const TYPES: { v: ExpenseType; k: Key }[] = [
             <a class="btn" [routerLink]="['/report', date()]"><app-icon name="note" [size]="18" />{{ i.pick('Daily report (PDF)', 'రోజువారీ నివేదిక (PDF)') }}
               @if (store.sheets()[date()].reports?.length) { <span class="chip">R{{ store.sheets()[date()].reports!.length }}</span> }
             </a>
+            <button class="btn quiet" type="button" (click)="openMove()"><app-icon name="right" [size]="18" />{{ i.pick('Wrong date? Move this day', 'తప్పు తేదీనా? ఈ రోజును మార్చు') }}</button>
           }
         }
       </header>
@@ -76,6 +77,15 @@ const TYPES: { v: ExpenseType; k: Key }[] = [
 
         @if (s.closed) {
           <div class="al warn"><app-icon name="info" /><span><b>{{ i.t('closedDay') }}.</b> {{ i.t('shopClosedHint') }}</span></div>
+        }
+
+        @if (s.movedFrom) {
+          <div class="al warn"><app-icon name="info" /><span>
+            <b>{{ i.pick('Moved from ' + fmtDay(s.movedFrom), fmtDay(s.movedFrom) + ' నుంచి మార్చబడింది') }}.</b>
+            {{ prevSaved()
+              ? i.pick('Openings are from ' + fmtShort(prevDate()) + '; closings stay as counted. Check and save.', fmtShort(prevDate()) + ' ముగింపు నుంచి ప్రారంభం; ముగింపులు లెక్కించినట్లే. చూసి సేవ్ చేయండి.')
+              : i.pick('Save ' + fmtShort(prevDate()) + ' first. Openings will then follow it and closings stay as counted.', 'ముందు ' + fmtShort(prevDate()) + ' సేవ్ చేయండి. ప్రారంభ నిల్వలు దాని నుంచి వస్తాయి, ముగింపులు అలాగే ఉంటాయి.') }}
+          </span></div>
         }
 
         <app-alerts [alerts]="dayAlerts()" [notes]="s.notes" (add)="addNote($event)" (remove)="removeNote($event)" />
@@ -195,10 +205,40 @@ const TYPES: { v: ExpenseType; k: Key }[] = [
         </section>
 
         <div class="fab-bar">
-          <button class="btn primary" type="button" (click)="save()">{{ s.status === 'saved' ? i.t('savedTapAgain') : i.t('saveDay') + ' · ' + fmtShort(date()) }}</button>
+          <button class="btn primary" type="button" (click)="save()" [disabled]="!!s.movedFrom && !prevSaved()">{{ s.status === 'saved' ? i.t('savedTapAgain') : i.t('saveDay') + ' · ' + fmtShort(date()) }}</button>
         </div>
       }
     </main>
+
+    @if (moveOpen()) {
+      <div class="sheet-backdrop" (click)="moveOpen.set(false)">
+        <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="moveTitle" (click)="$event.stopPropagation()">
+          <div class="handle"></div>
+          <div>
+            <h2 id="moveTitle" class="title" style="font-size: 22px; line-height: 34px">{{ i.pick('Move ' + fmtShort(date()) + ' to another date', fmtShort(date()) + ' ను వేరే తేదీకి మార్చు') }}</h2>
+            <div class="small muted">{{ i.pick('For a sheet entered under the wrong date. Everything on this form moves: counts, expenses, UPI, cash and notes.', 'తప్పు తేదీలో నమోదు చేసిన షీట్ కోసం. ఈ ఫారమ్‌లోని మొత్తం మారుతుంది.') }}</div>
+          </div>
+          <label class="field"><span class="cap">{{ i.pick('Correct date', 'సరైన తేదీ') }}</span>
+            <input class="input" type="date" [value]="moveTo()" (input)="moveTo.set($any($event.target).value)" />
+          </label>
+          @if (moveProblem(); as p) {
+            <div class="al critical"><app-icon name="alert" /><span>{{ p }}</span></div>
+          } @else if (moveTo()) {
+            <ul class="small" style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px">
+              <li>{{ i.pick('Closings stay as counted. Openings come from ' + fmtShort(addDays(moveTo(), -1)) + (store.previousSaved(moveTo()) ? '' : ' once that day is saved') + ', and sales are worked out again.', 'ముగింపులు అలాగే ఉంటాయి. ప్రారంభ నిల్వలు ' + fmtShort(addDays(moveTo(), -1)) + ' నుంచి వస్తాయి.') }}</li>
+              @if (moveInwards()) { <li>{{ i.pick(moveInwards() + (moveInwards() === 1 ? ' delivery moves' : ' deliveries move') + ' with it, with their buy costs.', moveInwards() + ' సరుకు రాకలు కూడా మారతాయి.') }}</li> }
+              @if (sheet()?.status === 'saved') { <li>{{ i.pick('The moved day becomes unsaved until you save it again.', 'మార్చిన రోజు మళ్లీ సేవ్ చేసే వరకు సేవ్ కాదు.') }}</li> }
+              <li>{{ i.pick(fmtShort(date()) + ' becomes empty, ready for its own sheet.', fmtShort(date()) + ' ఖాళీ అవుతుంది.') }}</li>
+              <li>{{ i.pick('A safety copy is kept: Settings → Undo undoes this move.', 'కాపీ ఉంచబడుతుంది: సెట్టింగ్స్‌లో రద్దు చేయవచ్చు.') }}</li>
+            </ul>
+          }
+          <div class="row">
+            <button class="btn grow" type="button" (click)="moveOpen.set(false)" style="min-height: 56px">{{ i.t('cancel') }}</button>
+            <button class="btn primary" type="button" style="flex: 2" [disabled]="!moveTo() || !!moveProblem() || moving()" (click)="move()">{{ i.pick('Move to', 'మార్చు') }} {{ moveTo() ? fmtShort(moveTo()) : '' }}</button>
+          </div>
+        </section>
+      </div>
+    }
 
     @if (fetchOpen() && sheet(); as s) {
       <div class="sheet-backdrop" (click)="fetchOpen.set(false)">
@@ -428,6 +468,8 @@ export class Entry implements OnDestroy {
   protected async save() {
     const s = this.sheet();
     if (!s) return;
+    // A moved form's openings aren't known until the day before is saved.
+    if (s.movedFrom && !this.prevSaved()) return;
     clearTimeout(this.timer);
     const saved = await this.store.saveSheet({ ...s, updatedAt: new Date().toISOString() });
     this.sheet.set(saved);
@@ -470,6 +512,49 @@ export class Entry implements OnDestroy {
     if (this.state().kind === 'ready' && this.isNewUntouched()) await this.store.saveDraft(this.sheet()!);
     await this.store.setPrices([change]);
     this.toast.show(this.i.pick(`New price for ${row.nameEn} ${row.size} from ${fmtShort(this.date())}`, `${row.nameTe} ${row.size} కొత్త ధర ${fmtShort(this.date())} నుంచి`));
+  }
+
+  // ---------- move a day entered under the wrong date ----------
+
+  protected addDays = addDays;
+  protected moveOpen = signal(false);
+  protected moveTo = signal('');
+  protected moving = signal(false);
+  protected moveInwards = computed(() => this.store.inwardsFor(this.date()).length);
+  protected moveProblem = computed(() => {
+    const to = this.moveTo();
+    if (!to) return null;
+    if (to === this.date()) return this.i.pick('That is the same date.', 'అదే తేదీ.');
+    const there = this.store.sheets()[to];
+    if (there) return this.i.pick(`${fmtDay(to)} already has a ${there.status === 'saved' ? 'saved' : 'draft'} form. Move or clear that one first.`, `${fmtDay(to)} కి ఇప్పటికే ఫారమ్ ఉంది.`);
+    return null;
+  });
+
+  protected openMove() {
+    this.flush();
+    this.moveTo.set('');
+    this.moveOpen.set(true);
+  }
+
+  protected async move() {
+    const from = this.date();
+    const to = this.moveTo();
+    if (!to || this.moveProblem()) return;
+    this.moving.set(true);
+    try {
+      // Let a pending autosave land before the data is rewritten.
+      const s = this.sheet();
+      if (s && this.touched() && s.status === 'draft') await this.store.saveDraft(s);
+      this.touched.set(false);
+      await this.store.moveDay(from, to);
+      this.moveOpen.set(false);
+      this.toast.show(this.i.pick(`Moved ${fmtShort(from)} to ${fmtShort(to)}`, `${fmtShort(from)} ను ${fmtShort(to)} కి మార్చారు`));
+      this.router.navigate(['/entry', to]);
+    } catch (e) {
+      this.toast.show(String((e as Error).message ?? e));
+    } finally {
+      this.moving.set(false);
+    }
   }
 
   // ---------- fetch previous closing ----------

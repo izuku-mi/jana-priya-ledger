@@ -8,6 +8,7 @@ import { LedgerStore } from '../core/store';
 import { AlertsPanel } from '../ui/alerts-panel';
 import { BarChart } from '../ui/bar-chart';
 import { Bottle, Icon } from '../ui/icon';
+import { Toast } from '../ui/toast';
 
 @Component({
   selector: 'app-dashboard',
@@ -53,6 +54,16 @@ import { Bottle, Icon } from '../ui/icon';
         <div class="kpi"><div class="cap">{{ i.t('stockValue') }}</div><b>{{ inr(stockNow().value) }}</b><div class="cap">{{ group(stockNow().bottles) }} · {{ i.t('atSellRate') }}</div></div>
       </div>
 
+      <section class="card tight">
+        <div class="row-between"><h2 class="title">{{ i.pick('Reports', 'నివేదికలు') }}</h2><span class="chip">{{ i.pick('Coming soon', 'త్వరలో') }}</span></div>
+        <div class="row" style="flex-wrap: wrap">
+          @for (k of kinds; track k) {
+            <button class="btn grow" type="button" (click)="downloadReport(k)"><app-icon name="download" [size]="18" />{{ reportName(k) }}</button>
+          }
+        </div>
+        <div class="cap">{{ i.pick('PDF of the ' + i.t(kind()).toLowerCase() + ' shown above: sales, stock, expenses and profit.', 'పైన చూపిన కాలానికి PDF: అమ్మకాలు, స్టాక్, ఖర్చులు, లాభం.') }}</div>
+      </section>
+
       <section class="card">
         <div class="row-between"><h2 class="title">{{ kind() === 'year' ? i.t('salesByMonth') : i.t('salesByDay') }}</h2></div>
         <app-bar-chart [bars]="chart()" />
@@ -93,6 +104,7 @@ export class Dashboard {
   protected store = inject(LedgerStore);
   protected i = inject(I18n);
   private alertsSvc = inject(Alerts);
+  private toast = inject(Toast);
   protected inr = inr;
   protected group = group;
   protected kinds: PeriodKind[] = ['week', 'month', 'year'];
@@ -165,6 +177,20 @@ export class Dashboard {
     const a = this.anchor();
     const k = this.kind();
     this.anchor.set(k === 'week' ? addDays(a, 7 * n) : k === 'month' ? addMonths(a, n) : addMonths(a, 12 * n));
+  }
+
+  protected reportName(k: PeriodKind) {
+    return { week: this.i.pick('Weekly', 'వారపు'), month: this.i.pick('Monthly', 'నెలవారీ'), year: this.i.pick('Yearly', 'వార్షిక') }[k];
+  }
+
+  /** Placeholder until period reports are built: it names the period the report will cover. */
+  protected downloadReport(k: PeriodKind) {
+    const s = this.store.settings();
+    const p = periodOf(k, this.anchor(), s.weekStart, s.yearStartMonth);
+    this.toast.show(this.i.pick(
+      `${this.reportName(k)} report (${fmtShort(p.start)} – ${fmtShort(p.end)}) is coming soon`,
+      `${this.reportName(k)} నివేదిక (${fmtShort(p.start)} – ${fmtShort(p.end)}) త్వరలో వస్తుంది`,
+    ));
   }
 
   protected toggleLang() {

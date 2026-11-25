@@ -70,6 +70,12 @@ export interface DailySheet {
   updatedAt: string;
   /** Every PDF made for this day. The figures are kept so a later report can list what changed. */
   reports?: ReportRecord[];
+  /**
+   * Set when the form was entered under the wrong date and moved here. Its closings are the
+   * real count, so when the day before is saved its openings follow and the closings stay.
+   * Cleared on Save.
+   */
+  movedFrom?: string;
 }
 
 export interface ReportRecord {

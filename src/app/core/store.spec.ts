@@ -82,4 +82,36 @@ describe('LedgerStore through a repository', () => {
     expect(store.savedDates()).toEqual(['2026-11-19']);
     expect(store.balances()['2026-11-19']['L48']).toBe(10);
   });
+  it('moves a day entered under the wrong date, with its delivery, and its openings follow the day before', async () => {
+    await saveDay('2026-11-03', { L54: 100 }, { L54: 100 });
+    // Nov 6's sheet typed into Nov 4: a delivery of 50 and a counted closing of 120.
+    await store.saveInward({
+      id: 'w6', date: '2026-11-04', supplier: '', invoiceNo: '', invoiceTotal: null, notes: [], savedAt: '',
+      lines: [{ skuId: 'L54', qty: 50, cost: 90 }], charges: [],
+    });
+    const typed = structuredClone(store.sheets()['2026-11-04']);
+    typed.rows['L54'] = { ...typed.rows['L54'], c: 120, cEdited: true };
+    await store.saveDraft(typed);
+
+    await expect(store.moveDay('2026-11-04', '2026-11-03')).rejects.toThrow('already has a form');
+    await store.moveDay('2026-11-04', '2026-11-06');
+
+    expect(store.sheets()['2026-11-04']).toBeUndefined();
+    const moved = store.sheets()['2026-11-06'];
+    expect([moved.status, moved.movedFrom, moved.rows['L54'].r, moved.rows['L54'].c]).toEqual(['draft', '2026-11-04', 50, 120]);
+    expect(store.inwards().map((w) => w.date)).toEqual(['2026-11-06']);
+    expect(store.prices().filter((p) => p.inwardId === 'w6').map((p) => p.from)).toEqual(['2026-11-06']);
+    expect(await store.hasSafetyCopy()).toBe(true);
+
+    // Fill the real Nov 4 and 5; Nov 6 keeps its counted closing and its sales are worked out again.
+    expect(store.sheetState('2026-11-04').kind).toBe('ready');
+    await saveDay('2026-11-04', { L54: 90 });
+    await saveDay('2026-11-05', { L54: 80 });
+    const r = store.sheets()['2026-11-06'].rows['L54'];
+    expect([r.o, r.r, r.c, soldOf(r)]).toEqual([80, 50, 120, 10]);
+
+    const saved = await store.saveSheet(store.sheets()['2026-11-06']);
+    expect(saved.movedFrom).toBeUndefined();
+    expect(store.balances()['2026-11-06']['L54']).toBe(120);
+  });
 });

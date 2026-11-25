@@ -3,7 +3,7 @@ import { seedCatalog } from './catalog-seed';
 import { addDays, todayIso } from './dates';
 import { uid } from './format';
 import {
-  applyOpeningFix, deriveDay, FixMode, landedCosts, newSheet, openingDiffs, PriceOf, rowFromSku, withAutoClosing,
+  applyOpeningFix, deriveDay, FixMode, landedCosts, moveDayData, newSheet, openingDiffs, PriceOf, rowFromSku, withAutoClosing,
 } from './ledger';
 import { convertLegacy, LegacyBackup } from './legacy';
 import { Balance, CashDay, DailySheet, DEFAULT_SETTINGS, Inward, LedgerData, Movement, Note, PriceChange, ReportRecord, Settings, SheetRow, Sku } from './model';
@@ -233,7 +233,7 @@ export class LedgerStore {
     const now = new Date().toISOString();
     const rows: Record<string, SheetRow> = {};
     for (const [id, r] of Object.entries(sheet.rows)) rows[id] = withAutoClosing(r);
-    const saved: DailySheet = { ...sheet, rows, status: 'saved', savedAt: now, updatedAt: now };
+    const saved: DailySheet = { ...sheet, rows, status: 'saved', savedAt: now, updatedAt: now, movedFrom: undefined };
     const d = deriveDay(saved);
 
     await this.repo.saveDay(saved, d);
@@ -243,13 +243,24 @@ export class LedgerStore {
     this.balances.update((b) => ({ ...b, [saved.date]: Object.fromEntries(d.balances.map((x) => [x.skuId, x.closing])) }));
     this.cashDays.update((c) => ({ ...c, [saved.date]: d.cashDay }));
 
-    // A draft for the next day follows the new closings automatically.
+    // A draft for the next day follows the new closings automatically. A form moved from
+    // another date keeps its counted closings; any other draft keeps its sales.
     const next = this.sheets()[addDays(saved.date, 1)];
     if (next && next.status === 'draft') {
       const ids = openingDiffs(next, saved).map((x) => x.skuId);
-      if (ids.length) await this.saveDraft(applyOpeningFix(next, saved, ids, 'keepSales'));
+      if (ids.length) await this.saveDraft(applyOpeningFix(next, saved, ids, next.movedFrom ? 'keepClosing' : 'keepSales'));
     }
     return saved;
+  }
+
+  /**
+   * A day entered under the wrong date: move its form and deliveries to the right date.
+   * The current data is kept as a safety copy first (Settings → Undo).
+   */
+  async moveDay(from: string, to: string) {
+    const next = moveDayData(this.currentData(), from, to);
+    await this.repo.putSafetyCopy(await this.buildBackup());
+    await this.replaceAll(next);
   }
 
   /** Remember that a report was made, with its figures, without changing whether the day is saved. */
