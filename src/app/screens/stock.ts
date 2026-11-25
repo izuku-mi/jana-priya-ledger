@@ -17,7 +17,7 @@ import { Icon } from '../ui/icon';
     <main class="screen">
       <header class="screen-head">
         <div class="grow"><h1>{{ i.t('stockMovement') }}</h1><div class="sub">{{ rangeLabel() }}</div></div>
-        <a class="btn icon quiet" routerLink="/catalog" [attr.aria-label]="i.pick('Catalogue', 'కేటలాగ్')" [title]="i.pick('Catalogue', 'కేటలాగ్')"><app-icon name="tag" /></a>
+        <a class="btn" routerLink="/catalog" style="min-height: 40px; padding: 0 14px; gap: 6px; font-size: 14px"><app-icon name="tag" [size]="18" />{{ i.pick('Catalogue', 'కేటలాగ్') }}</a>
       </header>
 
       <div class="seg" role="tablist" aria-label="Period">
